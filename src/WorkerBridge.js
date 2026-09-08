@@ -12,6 +12,7 @@
 
 import { saveAs } from './saveAs.js';
 import { AppState } from './AppState.js';
+import { RunDecoder } from './net/RunCodec.js';
 
 // Milliseconds of RUN-tick silence (while game is active) before the stall
 // watchdog fires.  At speed 2–3 the worker posts ≈ 30 RUN messages per second;
@@ -27,6 +28,9 @@ export class WorkerBridge {
         this._worker        = null;
         this._isWorker      = true;
         this._directMessage = null;
+        this._socket        = null;   // remote mode: WebSocket to server/
+        this._decoder       = null;   // remote mode: RUN frame decoder
+        this._joined        = false;  // remote mode: JOIN sent once the view was ready
         this._onPlayStart   = null;   // callback: called when FULLREBUILD+isStart fires
 
         // Stall watchdog state
@@ -49,7 +53,11 @@ export class WorkerBridge {
         var _this   = this;
         var handler = function ( e ) { _this.dispatch( e ); };
 
-        if ( isWorkerMode ) {
+        if ( AppState.remote ) {
+
+            this._bootRemote( AppState.remote );
+
+        } else if ( isWorkerMode ) {
 
             this._worker = new Worker( './build/citygame.min.js' );
             this._worker.postMessage = this._worker.webkitPostMessage || this._worker.postMessage;
@@ -62,6 +70,48 @@ export class WorkerBridge {
             this.post( { tell: 'INIT', timestep: timestep, returnMessage: handler } );
 
         }
+
+    }
+
+    // ── Remote (viewer) mode ───────────────────────────────────────────────
+    //  The simulation runs on the server; we receive the same messages the
+    //  worker would have posted, over a WebSocket. RUN arrives as a binary diff
+    //  frame (src/net/RunCodec.js); everything else as JSON.
+
+    _bootRemote ( url ) {
+
+        var _this = this;
+        this._isWorker = false;
+        this._decoder  = new RunDecoder();
+
+        var ws = new WebSocket( url );
+        ws.binaryType = 'arraybuffer';
+        this._socket = ws;
+
+        ws.onopen = function () {
+            // Reconnect: the view already joined once, ask for a fresh snapshot.
+            if ( _this._joined ) _this.post( { tell: 'JOIN' } );
+        };
+
+        // Lets the chat panel (plain module, not in the bundle) talk to the server.
+        window.cityRemote = { send: function ( m ) { _this.post( m ); } };
+
+        ws.onmessage = function ( e ) {
+            if ( e.data instanceof ArrayBuffer ) {
+                _this.dispatch( { data: _this._decoder.decode( e.data ) } );
+            } else {
+                var d = JSON.parse( e.data );
+                // NEWMAP / FULLREBUILD carry tilesData as a plain array over JSON.
+                if ( Array.isArray( d.tilesData ) ) d.tilesData = Float32Array.from( d.tilesData );
+                _this.dispatch( { data: d } );
+            }
+        };
+
+        ws.onclose = function () {
+            _this._stopWatchdog();
+            if ( AppState.hub ) AppState.hub.showError( 'Lost connection to the city server. Reconnecting…' );
+            setTimeout( function () { _this._bootRemote( url ); }, 2000 );
+        };
 
     }
 
@@ -118,7 +168,16 @@ export class WorkerBridge {
             this._startWatchdog();
         }
 
-        if ( this._isWorker ) {
+        if ( this._socket ) {
+            if ( data.tell === 'JOIN' ) {
+                // The RUN stream starts after JOIN; arm the watchdog only now.
+                this._joined     = true;
+                this._gameActive = true;
+                this._startWatchdog();
+            }
+            // Viewers only send read-only requests; the server drops the rest.
+            if ( this._socket.readyState === WebSocket.OPEN ) this._socket.send( JSON.stringify( data ) );
+        } else if ( this._isWorker ) {
             this._worker.postMessage( data, buffer );
         } else {
             this._directMessage( { data: data } );
@@ -147,7 +206,7 @@ export class WorkerBridge {
             AppState.view3d.fullRedraw = true;
             AppState.tilesData = d.tilesData;
             AppState.view3d.paintMap( d.mapSize, d.island, AppState.withHeight );
-            AppState.view3d.loadCityBuild( d.cityData );
+            if ( d.cityData ) AppState.view3d.loadCityBuild( d.cityData );   // null for a remote snapshot
             if ( d.isStart ) {
                 AppState.main.playMap()
                 //AppState.view3d.startPlay();
@@ -197,6 +256,16 @@ export class WorkerBridge {
         if ( phase === 'SHOWOVERLAY' ) AppState.view3d.setOverlayMode( d.type, d.data );
 
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );
+
+        // Agent transcript / ledger: handled by the chat panel outside the bundle.
+        if ( phase === 'AGENT' || phase === 'AGENT_SYNC' || phase === 'LEDGER' ) {
+            window.dispatchEvent( new CustomEvent( 'city-agent', { detail: d } ) );
+        }
+
+        if ( phase === 'WAITING' ) {
+            // Remote server has no map yet; it will push FULLREBUILD when it does.
+            if ( AppState.hub ) AppState.hub.message( 'Waiting for the city to start…' );
+        }
 
         if ( phase === 'SAVEGAME' ) this._makeGameSave( d.gameData, d.key, d.silent );
         if ( phase === 'LOADGAME' ) this._makeLoadGame( d.key, d.isStart );

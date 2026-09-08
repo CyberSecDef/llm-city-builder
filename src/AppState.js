@@ -56,6 +56,7 @@ export const AppState = {
     isWebGPU:      false,   // true if three renderer is webgpu
     isMobile:      false,   // true when running on a mobile device
     isWorker:      true,    // true → use Web Worker; false → directMessage mode
+    remote:        null,    // ws:// URL → viewer mode: sim runs on server/, we only render
 
     withHeight:    true,   // current map was generated with a height map
     heightMulty:      1,   // increase height of map // 1

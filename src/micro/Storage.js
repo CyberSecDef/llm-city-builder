@@ -74,5 +74,5 @@ export class Storage {
 
 Micro.defineProperty(Storage, 'CURRENT_VERSION', Micro.makeConstantDescriptor(3));
 Micro.defineProperty(Storage, 'KEY', Micro.makeConstantDescriptor('micropolisJSGame'));
-Micro.defineProperty(Storage, 'canStore', Micro.makeConstantDescriptor(window.localStorage !== undefined));
+Micro.defineProperty(Storage, 'canStore', Micro.makeConstantDescriptor(typeof window !== 'undefined' && window.localStorage !== undefined));
 */

@@ -27,7 +27,8 @@
     "main": "rollup -c utils/rollup.config.main.js",
     "city": "rollup -c utils/rollup.config.city.js",
     "dev": "http-server ./ -c-1 -a localhost -p 8666 -o dev.html",
-    "start": "http-server ./ -c-1 -a localhost -p 8686 -o ./index.html"
+    "start": "node server/index.js",
+    "play": "AGENT=claude-code node server/index.js"
   },
   "keywords": [
     "3d.city",
@@ -45,5 +46,10 @@
     "@rollup/plugin-terser": "^1.0.0",
     "magic-string": "^0.30.0",
     "rollup": "^4.6.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ws": "^8.21.3",
+    "zod": "^4.5.4"
   }
 }

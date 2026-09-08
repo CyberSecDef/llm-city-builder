@@ -37,13 +37,19 @@ AppState.debugOverlay = new DebugOverlay();
 
 export class Main {
 
-    static async init ( DirectMessage, enableGPU = false ){
+    static async init ( DirectMessage, enableGPU = false, options = {} ){
 
-        if( DirectMessage !== undefined ){ 
+        if( DirectMessage !== undefined && DirectMessage !== null ){ 
 
             AppState.directMessage = DirectMessage;
             AppState.isWorker = false
 
+        }
+
+        // Viewer mode: the simulation lives on the server, we connect and watch.
+        if( options.remote ){
+            AppState.remote = options.remote;
+            AppState.isWorker = false;
         }
 
         if(enableGPU) AppState.forceWebGL = false;

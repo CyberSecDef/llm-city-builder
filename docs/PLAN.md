@@ -29,21 +29,49 @@ people watch in the browser and can talk to it.
   - `drivers/codex.js` — `codex exec --json`, same MCP server.
   - `drivers/api.js` — Anthropic SDK tool loop, usage from `response.usage`.
 - `say(text)` is a tool; that is the narration channel. Tool calls are also
-  echoed to the transcript ("road 40,52 → 40,70"). User chat is queued and
-  delivered to the agent on its next turn.
+  echoed to the transcript ("road 40,52 → 40,70"). User chat goes into
+  `GameApi.inbox` and rides along inside the next tool result
+  (`viewerMessages`), so the agent sees it mid-turn; anything left over is
+  prepended to the next nudge.
 - Ledger: per-turn and cumulative input / output / cache-read / cache-write
   tokens and estimated USD, broadcast to viewers.
 
 ## Milestones
 
-- **M1** headless sim + WS relay + browser viewer mode (snapshot on join,
+- **M1** ✅ headless sim + WS relay + browser viewer mode (snapshot on join,
   throttled/diffed RUN broadcast).
-- **M2** gameApi + MCP server + Claude Code driver + chat panel + ledger.
+- **M2** ✅ gameApi + MCP server + Claude Code driver + chat panel + ledger.
 - **M3** API driver (Anthropic SDK), Codex driver.
 - **M4** persistence (save/restore city + transcript), agent pause/resume,
   spend caps, multi map sizes.
 
+## Running
+
+```
+npm run build                       # bundle (needed after touching src/)
+node server/index.js                # sim + viewer only, http://localhost:8787/
+AGENT=claude-code node server/index.js          # Claude Code plays (default model)
+AGENT=claude-code:sonnet MAX_BUDGET_USD=2 ...    # pick model, cap spend
+AGENT_LOG=agent.jsonl ...                       # raw stream-json from the CLI
+DEMO=1 ...                                      # scripted starter town, no agent
+```
+
 ## Notes
+
+- Claude Code driver: one long-lived `claude -p --input-format stream-json
+  --output-format stream-json --include-partial-messages --tools "" --restricted
+  --strict-mcp-config --mcp-config {city: http://localhost:PORT/mcp}
+  --allowedTools mcp__city__*`. Token usage comes from `stream_event`
+  `message_start` / `message_delta` (the per-block `assistant` events repeat a
+  placeholder usage); `result.total_cost_usd` is session-cumulative and only
+  arrives when the model ends its turn, so the ledger estimates from a price
+  table until then (`estimated: true`).
+- The CLI child must die with the server (`process.on('exit')` SIGKILL);
+  an orphaned mayor keeps playing against whatever is listening on the port.
+- `sim.tilesData` is the render layer (tile values only). Flags (ZONEBIT,
+  POWERBIT) live in `map.data[i].getRawValue()`.
+- Building tools run with auto-bulldoze on (trees/rubble, +$1/tile); water
+  and structures still block, and `build` explains what's in the way.
 
 - `package.json` says MIT; `LICENSE` is micropolisJS GPL‑3. The sim is GPL.
 - Sim tick: `MainGame.tick()` re-arms with `setTimeout(0)`; `simFrame()` gates

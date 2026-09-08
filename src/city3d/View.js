@@ -397,6 +397,13 @@ export class View {
 	    this.tmpWater = wat*/
 
 
+	    if( AppState.remote ){
+	    	// No menu for viewers: fly the camera in, then ask the server for the city.
+	    	this.isMenu = true;
+	    	this.openMap( 'REMOTE' );
+	    	return;
+	    }
+
 	    AppState.hub.initStartHub();
 
 	    this.isMenu = true;
@@ -524,6 +531,14 @@ export class View {
 
 			AppState.main.loadGame( true )
 
+
+		}
+
+		if( this.command === 'REMOTE' ){
+
+		    AppState.hub.generate( true );
+		    this.inMapGeneration = true;
+		    AppState.workerBridge.post( { tell: 'JOIN' } );
 
 		}
 

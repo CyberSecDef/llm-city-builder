@@ -23,7 +23,10 @@ import { QueryTool } from './tool/QueryTool.js';
 import { WireTool } from './tool/WireTool.js';
 
 
-const postMessage = self.webkitPostMessage || self.postMessage;
+// Runs in three places: a browser Web Worker, the main thread (directMessage),
+// or headless in Node (server/). Only the worker has self.postMessage.
+const inWorkerScope = typeof self !== 'undefined' && typeof self.postMessage === 'function';
+const postMessage = inWorkerScope ? ( self.webkitPostMessage || self.postMessage ) : null;
 
 
 var timer;
@@ -41,10 +44,13 @@ let messageCount = 0;
 var trans = false;// ( ab.byteLength === 0 );
 
 
-self.onmessage = function ( e ) { CityGame.message( e ) }
+if ( inWorkerScope ) self.onmessage = function ( e ) { CityGame.message( e ) }
 
 
 export class CityGame {
+
+    // Direct access to the running MainGame (headless server use only).
+    static get game () { return Game; }
 
     static message ( e ) {
 
