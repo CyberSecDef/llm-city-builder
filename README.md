@@ -58,9 +58,15 @@ AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT 
 
 ## Owner controls and saves
 
-The server prints an owner token at start. Open `/?admin=<token>` once and the chat panel grows a control row: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
+The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
 
 Everything lives in one save file per game (`GAME`, default `saves/latest.json`): the city, the transcript and ledger, unread viewer messages, and the mayor's own conversation (API history, Codex thread, or Claude Code session). Stop the server, start it again, and the mayor carries on mid-thought.
+
+## Game rules added on top of Micropolis
+
+- A new map starts with one free road along the border that needs the least terraforming, and no water within two tiles of it.
+- Roads are one connected network: new road must meet it, buildings never cover road, and a road tile that would split the network can't be bulldozed.
+- Everything else must border a road. `build` prepares its site: trees and old structures are bulldozed ($1/tile), shore water is filled ($25/tile); open water is off limits.
 
 ## The tool API
 

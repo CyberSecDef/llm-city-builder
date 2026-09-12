@@ -15,6 +15,8 @@ const CSS = `
 #agent-head { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--c-border, rgba(100,160,220,.22)); cursor:pointer; }
 #agent-head b { flex:1; font-weight:600; }
 #agent-ledger { font-size:11px; color:var(--c-text-dim, rgba(180,210,240,.6)); white-space:nowrap; }
+#agent-key { font-size:12px; opacity:.55; cursor:pointer; }
+#agent-key:hover, #agent.owner #agent-key { opacity:1; }
 #agent-log { flex:1; overflow-y:auto; padding:8px 10px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; }
 .ae { padding:6px 9px; border-radius:8px; max-width:100%; word-wrap:break-word; }
 .ae.say { background:rgba(74,158,221,.22); border-left:3px solid var(--c-accent, #4a9edd); }
@@ -49,7 +51,7 @@ export class AgentPanel {
         const style = document.createElement( 'style' ); style.textContent = CSS; document.head.appendChild( style );
         const el = this.el = document.createElement( 'div' ); el.id = 'agent';
         el.innerHTML = `
-            <div id="agent-head"><b id="agent-title">Mayor</b><span id="agent-ledger">connecting…</span></div>
+            <div id="agent-head"><b id="agent-title">Mayor</b><span id="agent-ledger">connecting…</span><span id="agent-key" title="owner token">🔑</span></div>
             <div id="agent-state"></div>
             <div id="agent-admin">
                 <button id="adm-pause" class="primary">Pause</button>
@@ -84,6 +86,8 @@ export class AgentPanel {
     }
 
     // ?admin=<token> once, then it lives in localStorage and the URL is cleaned.
+    // The owner token comes from ?admin=<token> once, from the 🔑 button, or
+    // from localStorage on later visits. Wrong or missing: viewer only.
     _initAdmin ( el ) {
         const url = new URL( location.href );
         const fromUrl = url.searchParams.get( 'admin' );
@@ -92,14 +96,29 @@ export class AgentPanel {
             url.searchParams.delete( 'admin' ); history.replaceState( null, '', url );
         }
         try { this.token = localStorage.getItem( 'city-admin' ); } catch { this.token = null; }
-        if ( !this.token ) return;
-        el.classList.add( 'owner' );
         const admin = ( action, extra = {} ) => window.cityRemote?.send( { tell: 'ADMIN', token: this.token, action, ...extra } );
         el.querySelector( '#adm-pause' ).onclick = () => admin( this.state?.paused ? 'resume' : 'pause' );
         el.querySelector( '#adm-save' ).onclick = () => admin( 'save' );
         el.querySelector( '#adm-setcap' ).onclick = () => admin( 'set_cap', { usd: Number( el.querySelector( '#adm-cap' ).value ) } );
         el.querySelector( '#adm-new' ).onclick = () => { if ( confirm( 'Start a new game? The current city is replaced (the save file is overwritten at the next autosave).' ) ) admin( 'new_game', { mapSize: el.querySelector( '#adm-size' ).value } ); };
         el.querySelector( '#adm-stop' ).onclick = () => { if ( confirm( 'Stop the mayor? The clock keeps running; restart the server to bring it back.' ) ) admin( 'stop' ); };
+        el.querySelector( '#agent-key' ).onclick = ( e ) => {
+            e.stopPropagation();   // don't collapse the panel
+            const cur = this.token || '';
+            const t = prompt( cur ? 'Owner token (clear to sign out):' : 'Owner token (printed by the server at start):', cur );
+            if ( t === null ) return;
+            this.setToken( t.trim() );
+        };
+        this.setToken( this.token, true );
+    }
+
+    setToken ( token, silent ) {
+        this.token = token || null;
+        try { if ( this.token ) localStorage.setItem( 'city-admin', this.token ); else localStorage.removeItem( 'city-admin' ); } catch {}
+        this.el.classList.toggle( 'owner', !!this.token );
+        this.el.querySelector( '#agent-key' ).title = this.token ? 'owner token set (click to change)' : 'enter the owner token';
+        if ( !silent && this.token ) { this.noteEl.textContent = 'token saved'; this.noteEl.style.color = ''; }
+        if ( this.state ) this.setState( this.state );
     }
 
     setState ( st ) {
@@ -144,7 +163,7 @@ export class AgentPanel {
         } else if ( d.tell === 'AGENT_STATE' ) {
             this.setState( d.state );
         } else if ( d.tell === 'ADMIN_RESULT' ) {
-            this.noteEl.textContent = `${ d.action }: ${ d.text }`;
+            this.noteEl.textContent = `${ d.action }: ${ d.text }` + ( d.text === 'bad token' ? ' — click 🔑 to enter the owner token' : '' );
             this.noteEl.style.color = d.ok ? '' : '#f0a0a0';
         }
     }

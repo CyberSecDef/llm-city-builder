@@ -87,7 +87,7 @@ server.listen( PORT, HOST, () => {
     console.log( `llm-city-builder  ${ urls.join( '  ' ) }` );
     console.log( `owner token       ${ ADMIN_TOKEN }   (open ${ urls[ 1 ] || urls[ 0 ] }?admin=${ ADMIN_TOKEN })` );
     if ( saved ) sim.load( saved.city );
-    else sim.newGame( MAP_SIZE );
+    else newGame( MAP_SIZE );
     if ( process.env.DEMO && !saved ) demoBuild();
     if ( agentSpec ) startAgent( agentSpec, saved?.agentSpec === agentSpec ? saved.agent : null );
     setInterval( () => save.write( { sim, host, agentSpec } ).catch( ( e ) => console.error( 'autosave failed:', e.message ) ), SAVE_EVERY );
@@ -113,12 +113,19 @@ async function onAdmin ( action, msg ) {
         case 'new_game': {
             const size = parseMapSize( msg.mapSize ) || MAP_SIZE;
             host?.stop(); host = null; relay.attachAgent( null );
-            sim.newGame( size );
+            newGame( size );
             if ( agentSpec ) startAgent( agentSpec, null );
             return;
         }
         default: return `unknown action ${ action }`;
     }
+}
+
+// Fresh map plus the founding road (see GameApi.starterRoad).
+function newGame ( size ) {
+    sim.newGame( size );
+    const r = api.starterRoad();
+    console.log( `starter road along the ${ r.side } edge, (${ r.from }) → (${ r.to })` );
 }
 
 function lanAddresses () {

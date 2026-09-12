@@ -157,7 +157,9 @@ export class AgentHost extends EventEmitter {
     }
 
     _kickoff () {
-        return `A new ${ this.api.sim.mapSize.join( 'x' ) } map has just been generated and the clock is running. Introduce yourself to the viewers with say(), look at the map, and found the city.`;
+        const r = this.api.starter;
+        const road = r ? ` A founding road already runs along the ${ r.side } edge from (${ r.from }) to (${ r.to }); every other road must branch off it, and buildings must sit beside a road.` : '';
+        return `A new ${ this.api.sim.mapSize.join( 'x' ) } map has just been generated and the clock is running.${ road } Introduce yourself to the viewers with say(), look at the map, and found the city.`;
     }
 
     _continue () { return this.inboxLines() + 'Continue playing.'; }

@@ -178,3 +178,8 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   outward so each tile sees the one before it; build() refuses footprints
   containing road; bulldoze skips road tiles whose removal would disconnect
   their neighbours (`_wouldSplitRoads`, flood fill over road tiles).
+- Starter road (Sep 12 2026): `GameApi.starterRoad()` after every NEWMAP —
+  picks the border with the least water in a 5-wide band two tiles in,
+  fills that band, lays the road for free (funds restored), records
+  `api.starter` for the kickoff prompt. Owner token can also be entered via
+  the 🔑 button in the panel header (prompt → localStorage).

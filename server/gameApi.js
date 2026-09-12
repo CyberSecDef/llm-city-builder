@@ -319,6 +319,43 @@ export class GameApi extends EventEmitter {
         return this.game.currentTool.result;
     }
 
+    // ── new-game layout ─────────────────────────────────────────────────────
+
+    // Every new map starts with one free road along the border that needs
+    // the least terraforming, and no water within two tiles of it. That road
+    // seeds the connected network the build rules require.
+    starterRoad () {
+        const [ w, h ] = this.sim.mapSize;
+        const inset = 2, band = 2;
+        const sides = [
+            { name: 'north', tiles: ( i ) => [ i, inset ],         len: w, band: ( i, d ) => [ i, inset + d ] },
+            { name: 'south', tiles: ( i ) => [ i, h - 1 - inset ], len: w, band: ( i, d ) => [ i, h - 1 - inset + d ] },
+            { name: 'west',  tiles: ( i ) => [ inset, i ],         len: h, band: ( i, d ) => [ inset + d, i ] },
+            { name: 'east',  tiles: ( i ) => [ w - 1 - inset, i ], len: h, band: ( i, d ) => [ w - 1 - inset + d, i ] },
+        ];
+        const waterIn = ( side ) => {
+            let n = 0;
+            for ( let i = 0; i < side.len; i++ ) for ( let d = -band; d <= band; d++ ) {
+                const [ x, y ] = side.band( i, d );
+                if ( this.map.testBounds( x, y ) && this._isWater( this.map.getTileValue( x, y ) ) ) n++;
+            }
+            return n;
+        };
+        const side = sides.reduce( ( a, b ) => waterIn( b ) < waterIn( a ) ? b : a );
+        for ( let i = 0; i < side.len; i++ ) for ( let d = -band; d <= band; d++ ) {
+            const [ x, y ] = side.band( i, d );
+            if ( this.map.testBounds( x, y ) && this._isWater( this.map.getTileValue( x, y ) ) ) this.map.setTile( x, y, Tile.DIRT, 0 );
+        }
+        const funds = this._funds();
+        this.game.tool( 'road' );
+        for ( let i = 0; i < side.len; i++ ) this._clickRaw( ...side.tiles( i ) );
+        this.game.tool( 'none' );
+        this.game.simulation.budget.setFunds( funds );      // the founding road is a gift
+        const [ x0, y0 ] = side.tiles( 0 ), [ x1, y1 ] = side.tiles( side.len - 1 );
+        this.starter = { side: side.name, from: [ x0, y0 ], to: [ x1, y1 ] };
+        return this.starter;
+    }
+
     // ── site preparation ────────────────────────────────────────────────────
 
     _isWater ( v ) { const t = v & 0x3FF; return t >= Tile.RIVER && t <= Tile.WATER_HIGH; }
