@@ -33,7 +33,7 @@ npm run build                                  # bundle src/ → build/ (rerun a
 node server/index.js                           # sim + viewers only  → http://localhost:8787/
 AGENT=claude-code node server/index.js         # Claude Code CLI plays (your login)
 AGENT=claude-code:sonnet node server/index.js  # pick a model alias / id
-AGENT=api node server/index.js                 # Anthropic API directly (ANTHROPIC_API_KEY), claude-sonnet-5
+AGENT=api node server/index.js                 # Anthropic API directly, claude-sonnet-5 (ANTHROPIC_API_KEY in env or .env)
 AGENT=api:claude-opus-5 node server/index.js
 AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT login)
 ```
@@ -45,6 +45,7 @@ AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT 
 | `MAX_BUDGET_USD` | claude-code only: passed to `claude --max-budget-usd`; the mayor stops when it's spent |
 | `MAX_CONTEXT_TOKENS` | api only: prompt size that triggers history compaction (default 80000) |
 | `THINKING=off` | api only: disable adaptive thinking |
+| `EFFORT` | api only: `output_config.effort` (low / medium / high); `low` cuts thinking spend ~5x with no visible drop in play |
 | `CODEX_EFFORT` | codex only: `model_reasoning_effort` (low / medium / high) |
 | `AGENT_LOG` | file to append the CLI's raw stream-json events to |
 | `DEMO=1` | scripted starter town, no agent |

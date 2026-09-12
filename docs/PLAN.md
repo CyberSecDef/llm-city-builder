@@ -61,9 +61,11 @@ people watch in the browser and can talk to it.
   - **M3.4** Wiring: `AGENT=api[:model]`, `AGENT=codex[:model]` in
     `index.js`; OpenAI rows in the ledger price table; README + Running.
   - **M3.5** Smoke-test each driver for a few turns against the viewer.
-    Codex verified (Sep 12 2026: founds a city, resumes across turns,
-    tokens land in the ledger). API driver verified against a scripted
-    fake client only — needs a real-key run.
+    Both verified Sep 12 2026. Codex founds a city, resumes across turns,
+    tokens land in the ledger. API driver (Sonnet 5): input_tokens=2 per
+    call with everything else a cache hit; adaptive thinking spiked to
+    7k output tokens on planning calls (~$6/h), `EFFORT=low` keeps it
+    under 1.5k with the same behaviour.
 - **M4** persistence (save/restore city + transcript), agent pause/resume,
   spend caps, multi map sizes.
 
@@ -75,7 +77,8 @@ node server/index.js                # sim + viewer only, http://localhost:8787/
 AGENT=claude-code node server/index.js          # Claude Code plays (default model)
 AGENT=claude-code:sonnet MAX_BUDGET_USD=2 ...    # pick model, cap spend
 ANTHROPIC_API_KEY=... AGENT=api node server/index.js        # direct API, claude-sonnet-5
-AGENT=api:claude-opus-5 MAX_CONTEXT_TOKENS=120000 THINKING=off ...
+AGENT=api:claude-opus-5 EFFORT=low MAX_CONTEXT_TOKENS=120000 THINKING=off ...
+# .env is loaded by the npm scripts (node --env-file-if-exists=.env); it is gitignored
 AGENT=codex node server/index.js                 # Codex CLI (ChatGPT login), default model
 AGENT=codex:gpt-5.5 CODEX_EFFORT=low ...
 AGENT_LOG=agent.jsonl ...                       # raw stream-json from the CLI

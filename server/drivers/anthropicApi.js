@@ -23,13 +23,13 @@ const RETRIES = 4;
 
 export class AnthropicApiDriver extends EventEmitter {
 
-    constructor ( api, { systemPrompt, model, maxContextTokens, thinking = true, logFile, client } = {} ) {
+    constructor ( api, { systemPrompt, model, maxContextTokens, thinking = true, effort, logFile, client } = {} ) {
         super();
         this.api = api;
         this.systemPrompt = systemPrompt;
         this.model = model || DEFAULT_MODEL;
         this.maxContextTokens = maxContextTokens || 80_000;
-        this.thinking = thinking;
+        this.thinking = thinking; this.effort = effort;
         this.logFile = logFile;
         this.tools = TOOL_DEFS.map( toJsonSchema );
         this.turns = [];            // [{ messages: [...] }] — one per send()
@@ -102,6 +102,7 @@ export class AnthropicApiDriver extends EventEmitter {
             ...extra,
         };
         if ( this.thinking ) params.thinking = { type: 'adaptive' };
+        if ( this.effort ) params.output_config = { effort: this.effort };
         let wait = 2000;
         for ( let attempt = 0; ; attempt++ ) {
             this._abort = new AbortController();

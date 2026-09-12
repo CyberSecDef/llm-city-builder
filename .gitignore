@@ -6,3 +6,4 @@ npm-debug.log
 prepa
 *.sh
 .codex-mayor
+.env

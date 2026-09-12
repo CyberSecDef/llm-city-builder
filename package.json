@@ -27,8 +27,10 @@
     "main": "rollup -c utils/rollup.config.main.js",
     "city": "rollup -c utils/rollup.config.city.js",
     "dev": "http-server ./ -c-1 -a localhost -p 8666 -o dev.html",
-    "start": "node server/index.js",
-    "play": "AGENT=claude-code node server/index.js"
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "play": "AGENT=claude-code node --env-file-if-exists=.env server/index.js",
+    "play:api": "AGENT=api node --env-file-if-exists=.env server/index.js",
+    "play:codex": "AGENT=codex node --env-file-if-exists=.env server/index.js"
   },
   "keywords": [
     "3d.city",

@@ -80,7 +80,7 @@ function startAgent ( spec ) {
         driver = new AnthropicApiDriver( api, {
             systemPrompt: SYSTEM_PROMPT, model, logFile: process.env.AGENT_LOG,
             maxContextTokens: Number( process.env.MAX_CONTEXT_TOKENS ) || undefined,
-            thinking: process.env.THINKING !== 'off',
+            thinking: process.env.THINKING !== 'off', effort: process.env.EFFORT,
         } );
     } else if ( kind === 'codex' ) {
         driver = new CodexDriver( {
