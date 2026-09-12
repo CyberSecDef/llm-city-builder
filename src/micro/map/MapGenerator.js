@@ -73,6 +73,19 @@ export class MapGenerator {
         this.map = new GameMap( Micro.MAP_WIDTH, Micro.MAP_HEIGHT );
         //this.map.makePP()
 
+        // Server-side games ask for mostly land: no island, no river, one or
+        // two lakes sized to a water fraction (see makeLakesToFraction).
+        if ( Micro.TERRAIN_STYLE === 'lakes' ) {
+            Micro.TERRAIN_CREATE_ISLAND = 0;
+            this.clearMap();
+            this.makeLakesToFraction( Micro.TERRAIN_WATER_FRACTION, Micro.TERRAIN_LAKES );
+            this.smoothRiver();
+            this.cleanBorder();
+            if ( Micro.TERRAIN_TREE_LEVEL !== 0 ) this.doTrees();
+            if( debug ) console.timeEnd("start newmap");
+            return this.map;
+        }
+
         Micro.TERRAIN_CREATE_ISLAND = math.getRandom(2) - 1;
 
         if ( Micro.TERRAIN_CREATE_ISLAND < 0 ) {
@@ -221,6 +234,37 @@ export class MapGenerator {
             y = math.getRandom( this.map.height - 20) + 10;
             this.makeSingleLake( new Position(x, y) );
             numLakes--;
+        }
+
+    }
+
+    // `count` lakes (1 or 2 usually) that together cover about `fraction`
+    // of the map. Each lake grows by plopping river blobs around its centre
+    // until its share of the water budget is met.
+    makeLakesToFraction( fraction = 0.1, count = 2 ) {
+
+        const map = this.map;
+        const total = map.width * map.height;
+        const budget = Math.floor( total * fraction );
+        const waterTiles = () => { let n = 0; for ( let i = 0; i < map.data.length; i++ ) { const v = map.data[ i ].getValue(); if ( v >= Tile.RIVER && v <= Tile.WATER_HIGH ) n++; } return n; };
+        const margin = 12;
+
+        const centres = [];
+        for ( let k = 0; k < count; k++ ) {
+            const target = Math.floor( budget * ( k + 1 ) / count );
+            // keep lakes apart so two really read as two
+            let cx, cy, tries = 20;
+            do { cx = margin + math.getRandom( map.width - 2 * margin ); cy = margin + math.getRandom( map.height - 2 * margin ); }
+            while ( tries-- && centres.some( ( [ ox, oy ] ) => Math.hypot( cx - ox, cy - oy ) < map.width / 2.5 ) );
+            centres.push( [ cx, cy ] );
+            let radius = 3, guard = 400;
+            while ( waterTiles() < target && guard-- ) {
+                const px = cx + math.getRandom( 2 * radius ) - radius, py = cy + math.getRandom( 2 * radius ) - radius;
+                if ( px < 4 || py < 4 || px > map.width - 14 || py > map.height - 14 ) continue;
+                const pos = new Position( px, py );
+                if ( math.getRandom( 3 ) ) this.plopSRiver( pos ); else this.plopBRiver( pos );
+                if ( guard % 4 === 0 ) radius++;      // let the lake spread as it fills
+            }
         }
 
     }

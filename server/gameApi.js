@@ -344,7 +344,7 @@ export class GameApi extends EventEmitter {
         const side = sides.reduce( ( a, b ) => waterIn( b ) < waterIn( a ) ? b : a );
         for ( let i = 0; i < side.len; i++ ) for ( let d = -band; d <= band; d++ ) {
             const [ x, y ] = side.band( i, d );
-            if ( this.map.testBounds( x, y ) && this._isWater( this.map.getTileValue( x, y ) ) ) this.map.setTile( x, y, Tile.DIRT, 0 );
+            if ( this.map.testBounds( x, y ) && this._isWater( this.map.getTileValue( x, y ) ) ) this._landfill( x, y, true );
         }
         const funds = this._funds();
         this.game.tool( 'road' );
@@ -423,9 +423,10 @@ export class GameApi extends EventEmitter {
         return false;
     }
 
-    _landfill ( x, y ) {
+    _landfill ( x, y, free = false ) {
         this.map.setTile( x, y, Tile.DIRT, 0 );
-        this.game.simulation.budget.spend( LANDFILL_COST );
+        if ( !free ) this.game.simulation.budget.spend( LANDFILL_COST );
+        this.emit( 'landfill', [ [ x, y ] ] );     // viewers lift the terrain there
     }
 
     // Make a footprint buildable: fill shore water outward from the land

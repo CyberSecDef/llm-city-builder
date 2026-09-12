@@ -56,6 +56,7 @@ const sim   = new Sim( 30 );
 const relay = new Relay( sim, server, { adminToken: () => ADMIN_TOKEN, onAdmin: ( a, m ) => onAdmin( a, m ) } );
 const api   = new GameApi( sim );
 const mcp   = new CityMcp( api );
+api.on( 'landfill', ( tiles ) => relay.landfill( tiles ) );
 
 sim.on( 'message', ( d ) => {
     if ( d.tell === 'TICKERROR' ) console.error( 'sim tick error:', d.message, d.stack );
@@ -123,8 +124,11 @@ async function onAdmin ( action, msg ) {
 
 // Fresh map plus the founding road (see GameApi.starterRoad).
 function newGame ( size ) {
+    relay.muted = true;                 // viewers must not paint the map before the road band is land
     sim.newGame( size );
     const r = api.starterRoad();
+    relay.muted = false;
+    relay.resync();
     console.log( `starter road along the ${ r.side } edge, (${ r.from }) → (${ r.to })` );
 }
 

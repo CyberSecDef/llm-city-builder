@@ -1881,6 +1881,7 @@ export class View {
 		this.buildingLists = []; this.townLists = []; this.houseLists = [];
 		const t = AppState.tilesData, w = this.mapSize[0], h = this.mapSize[1];
 		if ( !t ) return;
+		this.liftBuiltShore();
 		for ( let y = 0; y < h; y++ ) for ( let x = 0; x < w; x++ ) {
 			const v = t[ x + y * w ];
 			if ( v < 240 ) continue;
@@ -1892,6 +1893,26 @@ export class View {
 			if ( this.buildingLists[ l ] ) this.rebuildBuildingLayer( l );
 		}
 
+	}
+
+	// Terrain heights only come from the tile map when it is painted; land
+	// the server makes out of water afterwards would stay below the sea
+	// plane. Raise every corner of those tiles to just above it.
+	liftTiles ( tiles ) {
+		if ( !AppState.withHeight ) return;
+		for ( const [ x, y ] of tiles ) {
+			const corners = ZoneExtand( 1, x, y );
+			if ( this.getUnderSea( corners ) ) this.makePlanar( corners, 0.25 );
+		}
+	}
+
+	// On a snapshot the shore fill history is gone, but any built tile whose
+	// corners dip below the sea must have been filled: lift those.
+	liftBuiltShore () {
+		const t = AppState.tilesData, w = this.mapSize[0], h = this.mapSize[1];
+		const tiles = [];
+		for ( let y = 0; y < h; y++ ) for ( let x = 0; x < w; x++ ) if ( t[ x + y * w ] >= 64 ) tiles.push( [ x, y ] );
+		this.liftTiles( tiles );
 	}
 
 	_placeRemote ( x, y, size, v, kind ) {

@@ -257,6 +257,8 @@ export class WorkerBridge {
 
         if ( phase === 'SHOWOVERLAY' ) AppState.view3d.setOverlayMode( d.type, d.data );
 
+        if ( phase === 'LANDFILL' )    AppState.view3d.liftTiles( d.tiles );
+
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );
 
         // Agent transcript / ledger: handled by the chat panel outside the bundle.

@@ -58,8 +58,19 @@ export class Relay {
 
     // ── sim → viewers ───────────────────────────────────────────────────────
 
+    // Viewers get a fresh snapshot (used after a new map is prepared).
+    resync () {
+        this.encoder.reset();
+        this._pending = null; this._layerAcc = []; this._powerAcc = false;
+        for ( const ws of this.wss.clients ) if ( ws.joined && ws.readyState === ws.OPEN ) this._sendSnapshot( ws );
+    }
+
+    // Land the server made out of water; viewers raise the terrain there.
+    landfill ( tiles ) { if ( !this.muted ) this._broadcastJSON( { tell: 'LANDFILL', tiles } ); }
+
     _onSim ( d ) {
 
+        if ( this.muted ) return;            // a new map is being prepared; resync() follows
         if ( d.tell === 'RUN' ) {
             this._pending = d;
             for ( let i = 0; i < d.layer.length; i++ ) if ( d.layer[ i ] ) this._layerAcc[ i ] = 1;

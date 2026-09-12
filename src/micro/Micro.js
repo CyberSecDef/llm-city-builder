@@ -155,6 +155,9 @@ export const Micro = {
 
     // map generator
     TERRAIN_CREATE_ISLAND : 0,
+    TERRAIN_STYLE : 'classic',       // 'classic' (rivers, lakes, islands) | 'lakes' (mostly land)
+    TERRAIN_WATER_FRACTION : 0.1,    // 'lakes' style: share of tiles that end up water
+    TERRAIN_LAKES : 2,               // 'lakes' style: number of lakes
     TERRAIN_TREE_LEVEL : -1,//level for tree creation
     TERRAIN_LAKE_LEVEL : -1, //level for river curviness; -1==auto, 0==none, >0==level
     TERRAIN_CURVE_LEVEL : -1,//level for lake creation; -1==auto, 0==none, >0==level

@@ -35,8 +35,8 @@ export class Sim extends EventEmitter {
     }
 
     // Convenience: new random map + start playing.
-    newGame ( mapSize = [ 128, 128 ] ) {
-        this.post( { tell: 'NEWMAP', mapSize } );
+    newGame ( mapSize = [ 128, 128 ], terrain = { style: 'lakes', water: 0.1, lakes: 2 } ) {
+        this.post( { tell: 'NEWMAP', mapSize, terrain } );
         this.post( { tell: 'PLAYMAP' } );
     }
 

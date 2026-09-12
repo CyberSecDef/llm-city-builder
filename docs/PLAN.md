@@ -183,3 +183,13 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   fills that band, lays the road for free (funds restored), records
   `api.starter` for the kickoff prompt. Owner token can also be entered via
   the 🔑 button in the panel header (prompt → localStorage).
+- Terrain (Sep 12 2026): classic generator gave 30–50% water. `Micro.TERRAIN_STYLE
+  = 'lakes'` (set per NEWMAP from the server's `terrain` option) skips rivers
+  and islands and grows `TERRAIN_LAKES` lakes by plopping river blobs until
+  `TERRAIN_WATER_FRACTION` of tiles are water (measured 10.0–10.2%).
+- Viewer terrain: heights are derived from tiles only in paintMap, so land
+  the server makes from water stayed under the sea plane ("roads under
+  water"). Fixes: GameApi emits `landfill` → relay `LANDFILL` → `View.liftTiles`
+  (makePlanar to 0.25); `liftBuiltShore()` on snapshots; and `newGame()`
+  mutes the relay until the starter road is laid, then `relay.resync()`
+  sends every viewer a fresh snapshot.

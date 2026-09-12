@@ -70,7 +70,7 @@ export class CityGame {
         }
 
 
-        if( p == "NEWMAP" ) Game.newMap( e.data.mapSize );
+        if( p == "NEWMAP" ) Game.newMap( e.data.mapSize, e.data.terrain );
         if( p == "PLAYMAP" ) Game.playMap();
         if( p == "TOOL" ) Game.tool(e.data.name);
         if( p == "MAPCLICK" ) Game.mapClick(e.data.x, e.data.y, e.data.single || false);
@@ -226,9 +226,14 @@ export class MainGame {
 
     }
 
-    newMap ( mapSize ) {
+    newMap ( mapSize, terrain ) {
 
         if( mapSize ) this.mapSize = mapSize;
+        if( terrain ){   // { style, water, lakes } from the server; the browser game keeps the classic generator
+            Micro.TERRAIN_STYLE = terrain.style || 'classic';
+            if( terrain.water !== undefined ) Micro.TERRAIN_WATER_FRACTION = terrain.water;
+            if( terrain.lakes !== undefined ) Micro.TERRAIN_LAKES = terrain.lakes;
+        }
         this.map = this.mapGen.construct( this.mapSize[0], this.mapSize[1] );
         CityGame.post({ tell:"NEWMAP", tilesData:this.map.tilesData, mapSize:this.mapSize, island:this.map.isIsland, trans:trans });
 

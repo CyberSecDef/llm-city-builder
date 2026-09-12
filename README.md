@@ -64,7 +64,8 @@ Everything lives in one save file per game (`GAME`, default `saves/latest.json`)
 
 ## Game rules added on top of Micropolis
 
-- A new map starts with one free road along the border that needs the least terraforming, and no water within two tiles of it.
+- A new map is mostly land: no rivers or islands, one or two lakes covering about 10% of the tiles (`server/sim.js` passes `{style:'lakes', water:0.1, lakes:2}`; the browser game keeps the classic generator).
+- It starts with one free road along the border that needs the least terraforming, and no water within two tiles of it.
 - Roads are one connected network: new road must meet it, buildings never cover road, and a road tile that would split the network can't be bulldozed.
 - Everything else must border a road. `build` prepares its site: trees and old structures are bulldozed ($1/tile), shore water is filled ($25/tile); open water is off limits.
 
