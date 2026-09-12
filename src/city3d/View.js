@@ -1925,7 +1925,11 @@ export class View {
 		const w = this.mapSize[0], h = this.mapSize[1];
 		const key = ( x, y ) => x + y * 4096;
 
-		for ( let l = 0; l < this.nlayers; l++ ) this.drawLayer( l, false );
+		// Every 6th pass (~30 s) repaint the ground outright, in case a texture
+		// copy was lost; the other passes only touch changed tiles.
+		this._reconcileN = ( this._reconcileN || 0 ) + 1;
+		const full = this._reconcileN % 6 === 0;
+		for ( let l = 0; l < this.nlayers; l++ ) this.drawLayer( l, full );
 		this.updateLayer();
 
 		const want = new Map();
