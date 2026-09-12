@@ -20,6 +20,8 @@ import { RunDecoder } from './net/RunCodec.js';
 const STALL_THRESHOLD_MS = 10000;
 // How often the watchdog polls (ms)
 const WATCHDOG_INTERVAL_MS = 3000;
+// Viewer-mode panel messages that mutate the city; relayed as owner actions.
+const OWNER_TELLS = new Set( [ 'ISSUEBOND', 'SETORDINANCE', 'SETINDUSTRYSPEC', 'NEWBUDGET' ] );
 
 export class WorkerBridge {
 
@@ -175,10 +177,11 @@ export class WorkerBridge {
                 this._gameActive = true;
                 this._startWatchdog();
             }
-            // The budget panel's bond buttons: an owner action on the server.
-            if ( data.tell === 'ISSUEBOND' ) {
+            // Panel actions that change the city (bonds, ordinances, industry
+            // focus, budget apply) go to the server as owner actions.
+            if ( OWNER_TELLS.has( data.tell ) ) {
                 let token = null; try { token = localStorage.getItem( 'city-admin' ); } catch {}
-                data = { tell: 'ADMIN', token, action: 'bond', amount: data.amount };
+                data = { tell: 'ADMIN', token, action: data.tell === 'ISSUEBOND' ? 'bond' : 'sim', ...data, tell: undefined, sim: data.tell };
             }
             // Viewers only send read-only requests; the server drops the rest.
             if ( this._socket.readyState === WebSocket.OPEN ) this._socket.send( JSON.stringify( data ) );
@@ -268,9 +271,9 @@ export class WorkerBridge {
 
         if ( phase === 'LANDFILL' )    AppState.view3d.liftTiles( d.tiles );
         if ( phase === 'TILE_INFO' )   window.dispatchEvent( new CustomEvent( 'city-tile', { detail: d.info } ) );
-        if ( phase === 'ADMIN_RESULT' && d.action === 'bond' ) {
-            if ( d.ok ) this.post( { tell: 'BUDGET' } );                       // redraw debt / funds
-            else if ( AppState.hub ) AppState.hub.message( d.text === 'bad token' ? 'Bonds are an owner action: click 🔑 in the mayor panel and enter the token' : 'Bond refused: ' + d.text );
+        if ( phase === 'ADMIN_RESULT' && ( d.action === 'bond' || d.action === 'sim' ) ) {
+            if ( d.ok ) { if ( d.action === 'bond' ) this.post( { tell: 'BUDGET' } ); }    // ordinances/industry/budget echo their own refresh
+            else if ( AppState.hub ) AppState.hub.message( d.text === 'bad token' ? 'That is an owner action: click 🔑 in the mayor panel and enter the token' : 'Refused: ' + d.text );
         }
 
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );

@@ -110,6 +110,32 @@ async function onAdmin ( action, msg ) {
         case 'resume':   if ( !host ) return 'no agent'; return host.resume() === false ? `spend cap $${ host.capUsd } reached; raise it first` : undefined;
         case 'stop':     if ( !host ) return 'no agent'; host.stop(); return;
         case 'save':     await save.write( { sim, host, agentSpec } ); return;
+        case 'sim': {
+            // Panel controls the owner may drive directly: ordinances, industry focus, taxes/funding.
+            const tell = String( msg.sim || '' );
+            if ( tell === 'SETORDINANCE' ) {
+                const o = api.game.simulation.ordinances.getList().find( ( x ) => x.id === msg.id );
+                if ( !o ) return `unknown ordinance ${ msg.id }`;
+                sim.post( { tell, id: msg.id } );
+                host?.notify( `The owner ${ o.active ? 'repealed' : 'enacted' } the "${ o.name }" ordinance.` );
+                return;
+            }
+            if ( tell === 'SETINDUSTRYSPEC' ) {
+                const d = api.game.simulation.industrySpec.getList().find( ( x ) => x.id === msg.id );
+                if ( !d ) return `unknown industry focus ${ msg.id }`;
+                sim.post( { tell, id: msg.id } );
+                host?.notify( `The owner set the city's industry focus to "${ d.name }".` );
+                return;
+            }
+            if ( tell === 'NEWBUDGET' ) {
+                if ( !Array.isArray( msg.budgetData ) ) return 'budgetData missing';
+                sim.post( { tell, budgetData: msg.budgetData.map( Number ) } );
+                const b = api.game.getData( 'budget' );
+                host?.notify( `The owner changed the budget: taxes R ${ b.resTaxRate }% C ${ b.comTaxRate }% I ${ b.indTaxRate }%, funding roads ${ b.roadRate }% fire ${ b.fireRate }% police ${ b.policeRate }%.` );
+                return;
+            }
+            return `not an owner action: ${ tell }`;
+        }
         case 'bond': {
             const amount = Math.round( Number( msg.amount ) ) || 0;
             if ( ![ 5000, 10000, 20000 ].includes( amount ) ) return 'bond must be 5000, 10000 or 20000';
