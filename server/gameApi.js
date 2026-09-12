@@ -196,6 +196,8 @@ export class GameApi extends EventEmitter {
         const args = { tool, x, y };
         const size = spec.size;
         if ( !this.map.testBounds( x, y ) || !this.map.testBounds( x + size - 1, y + size - 1 ) ) return this._fail( 'build', args, `${ size }x${ size } footprint at (${ x },${ y }) runs off the map` );
+        const onRoad = this._roadTilesIn( x, y, size );
+        if ( onRoad ) return this._fail( 'build', args, `${ size }x${ size } footprint at (${ x },${ y }) covers ${ onRoad } road tile(s); roads are never built over. Pick a spot beside the road.` );
         if ( !this._roadAdjacent( x, y, size ) ) return this._fail( 'build', args, `nothing can be built away from a road: no road tile borders the ${ size }x${ size } footprint at (${ x },${ y }). Lay a road next to it first (build_line road).` );
         const before = this._funds();
         const site = this._prepareSite( x, y, size );
@@ -216,19 +218,33 @@ export class GameApi extends EventEmitter {
         for ( let x = x0; x !== x1 + sx; x += sx ) pts.push( [ x, y0 ] );
         for ( let y = y0 + sy; y !== y1 + sy; y += sy ) pts.push( [ x1, y ] );
         let filled = 0;
-        for ( const [ x, y ] of pts ) {
-            if ( !this.map.testBounds( x, y ) ) { failed++; lastErr = 'off map'; continue; }
-            // Shore water is filled, trees are cleared; other structures are left
-            // for the tool to handle (roads cross wires and rails on their own).
+        // One tile: fill shore water, clear trees, apply the tool. Other
+        // structures are left for the tool (roads cross wires and rails).
+        const lay = ( x, y ) => {
+            if ( !this.map.testBounds( x, y ) ) { failed++; lastErr = 'off map'; return false; }
+            if ( tool === 'road' && this._isRoad( this.map.getTileValue( x, y ) ) ) return true;   // already road: pass through
             if ( this._isWater( this.map.getTileValue( x, y ) ) ) {
-                if ( !this._touchesLand( x, y ) ) { failed++; lastErr = 'open water (no land next to it)'; continue; }
-                if ( this._funds() < LANDFILL_COST ) { failed++; lastErr = RESULT_TEXT[ 2 ]; break; }
+                if ( !this._touchesLand( x, y ) ) { failed++; lastErr = 'open water (no land next to it)'; return false; }
+                if ( this._funds() < LANDFILL_COST ) { failed++; lastErr = RESULT_TEXT[ 2 ]; return false; }
                 this._landfill( x, y ); filled++;
             } else if ( this._isTree( this.map.getTileValue( x, y ) ) ) {
                 this._click( 'bulldozer', x, y );
             }
             const r = this._click( tool, x, y );
-            if ( r === 0 ) placed++; else { failed++; lastErr = RESULT_TEXT[ r ]; if ( r === 2 ) break; }
+            if ( r === 0 ) { placed++; return true; }
+            failed++; lastErr = RESULT_TEXT[ r ]; return r !== 2;
+        };
+        if ( tool === 'road' && this._anyRoad() ) {
+            // Roads form one network. The line must meet it somewhere; it is
+            // then laid outward from that point in both directions, and a
+            // direction stops at the first tile that can't be placed so no
+            // disconnected stub is left beyond a gap.
+            const i0 = pts.findIndex( ( [ x, y ] ) => this.map.testBounds( x, y ) && ( this._isRoad( this.map.getTileValue( x, y ) ) || this._roadNeighbours( x, y ).length ) );
+            if ( i0 < 0 ) return this._fail( 'build_line', { tool, x0, y0, x1, y1 }, 'this road would be an island: no tile of it touches the existing road network' );
+            for ( let i = i0; i < pts.length; i++ ) if ( !lay( ...pts[ i ] ) ) { failed += pts.length - i - 1; lastErr += `; stopped there, ${ pts.length - i - 1 } tile(s) beyond it not laid`; break; }
+            for ( let i = i0 - 1; i >= 0; i-- ) if ( !lay( ...pts[ i ] ) ) { failed += i; lastErr += `; stopped there, ${ i } tile(s) beyond it not laid`; break; }
+        } else {
+            for ( const [ x, y ] of pts ) if ( !lay( x, y ) && lastErr === RESULT_TEXT[ 2 ] ) break;
         }
         const cost = before - this._funds();
         const args = { tool, x0, y0, x1, y1 };
@@ -239,11 +255,16 @@ export class GameApi extends EventEmitter {
     bulldoze ( { x, y, w = 1, h = 1 } ) {
         w = Math.min( w, 16 ); h = Math.min( h, 16 );
         const before = this._funds();
-        let cleared = 0;
+        let cleared = 0, keptRoads = 0;
         this.game.tool( 'bulldozer' );
-        for ( let ty = y; ty < y + h; ty++ ) for ( let tx = x; tx < x + w; tx++ ) if ( this._clickRaw( tx, ty ) === 0 ) cleared++;
+        for ( let ty = y; ty < y + h; ty++ ) for ( let tx = x; tx < x + w; tx++ ) {
+            if ( this.map.testBounds( tx, ty ) && this._isRoad( this.map.getTileValue( tx, ty ) ) && this._wouldSplitRoads( tx, ty ) ) { keptRoads++; continue; }
+            if ( this._clickRaw( tx, ty ) === 0 ) cleared++;
+        }
         this.game.tool( 'none' );
-        return this._ok( 'bulldoze', { x, y, w, h, cleared, cost: before - this._funds(), funds: this._funds() }, { x, y, w, h } );
+        const out = { x, y, w, h, cleared, cost: before - this._funds(), funds: this._funds() };
+        if ( keptRoads ) out.note = `${ keptRoads } road tile(s) left in place: removing them would split the road network`;
+        return this._ok( 'bulldoze', out, { x, y, w, h } );
     }
 
     set_speed ( { speed } ) {
@@ -304,7 +325,47 @@ export class GameApi extends EventEmitter {
     _isTree ( v ) { const t = v & 0x3FF; return t >= Tile.TREEBASE && t <= Tile.WOODS5; }
     _isRoad ( v ) {
         const t = v & 0x3FF;
-        return ( t >= Tile.ROADBASE && t <= Tile.LASTROAD ) || t === Tile.ROADVPOWERH || ( t >= Tile.HBRDG0 && t <= Tile.HBRDG3 ) || ( t >= Tile.VBRDG0 && t <= Tile.VBRDG3 );
+        return ( t >= Tile.ROADBASE && t <= Tile.LASTROAD ) || t === Tile.ROADVPOWERH || t === Tile.HRAILROAD || t === Tile.VRAILROAD
+            || ( t >= Tile.HBRDG0 && t <= Tile.HBRDG3 ) || ( t >= Tile.VBRDG0 && t <= Tile.VBRDG3 );
+    }
+
+    _roadTilesIn ( x, y, size ) {
+        let n = 0;
+        for ( let ty = y; ty < y + size; ty++ ) for ( let tx = x; tx < x + size; tx++ ) if ( this._isRoad( this.map.getTileValue( tx, ty ) ) ) n++;
+        return n;
+    }
+
+    _anyRoad () {
+        const data = this.map.data;
+        for ( let i = 0; i < data.length; i++ ) if ( this._isRoad( data[ i ].getValue() ) ) return true;
+        return false;
+    }
+
+    _roadNeighbours ( x, y ) {
+        const out = [];
+        for ( const [ dx, dy ] of [ [ 1, 0 ], [ -1, 0 ], [ 0, 1 ], [ 0, -1 ] ] ) {
+            const tx = x + dx, ty = y + dy;
+            if ( this.map.testBounds( tx, ty ) && this._isRoad( this.map.getTileValue( tx, ty ) ) ) out.push( [ tx, ty ] );
+        }
+        return out;
+    }
+
+    // Would removing this road tile leave its road neighbours in separate
+    // pieces? Flood-fill from one neighbour, skipping the tile itself.
+    _wouldSplitRoads ( x, y ) {
+        const nb = this._roadNeighbours( x, y );
+        if ( nb.length < 2 ) return false;
+        const key = ( a, b ) => a + b * 4096;
+        const seen = new Set( [ key( x, y ) ] ), stack = [ nb[ 0 ] ];
+        seen.add( key( ...nb[ 0 ] ) );
+        while ( stack.length ) {
+            const [ cx, cy ] = stack.pop();
+            for ( const n of this._roadNeighbours( cx, cy ) ) {
+                const k = key( ...n );
+                if ( !seen.has( k ) ) { seen.add( k ); stack.push( n ); }
+            }
+        }
+        return nb.some( ( [ tx, ty ] ) => !seen.has( key( tx, ty ) ) );
     }
 
     _touchesLand ( x, y ) {

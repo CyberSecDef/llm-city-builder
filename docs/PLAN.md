@@ -173,3 +173,8 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   the mayor pays $1/tile. build_line fills shore water and clears trees per
   tile but leaves wires/rails for the road tool to cross. Open water with no
   land beside it is refused.
+- Road network (Sep 12 2026): after the first road, a road tile is only
+  placed if it 4-touches an existing road (`_roadNeighbours`), lines grow
+  outward so each tile sees the one before it; build() refuses footprints
+  containing road; bulldoze skips road tiles whose removal would disconnect
+  their neighbours (`_wouldSplitRoads`, flood fill over road tiles).
