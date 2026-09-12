@@ -175,6 +175,11 @@ export class WorkerBridge {
                 this._gameActive = true;
                 this._startWatchdog();
             }
+            // The budget panel's bond buttons: an owner action on the server.
+            if ( data.tell === 'ISSUEBOND' ) {
+                let token = null; try { token = localStorage.getItem( 'city-admin' ); } catch {}
+                data = { tell: 'ADMIN', token, action: 'bond', amount: data.amount };
+            }
             // Viewers only send read-only requests; the server drops the rest.
             if ( this._socket.readyState === WebSocket.OPEN ) this._socket.send( JSON.stringify( data ) );
         } else if ( this._isWorker ) {
@@ -263,6 +268,10 @@ export class WorkerBridge {
 
         if ( phase === 'LANDFILL' )    AppState.view3d.liftTiles( d.tiles );
         if ( phase === 'TILE_INFO' )   window.dispatchEvent( new CustomEvent( 'city-tile', { detail: d.info } ) );
+        if ( phase === 'ADMIN_RESULT' && d.action === 'bond' ) {
+            if ( d.ok ) this.post( { tell: 'BUDGET' } );                       // redraw debt / funds
+            else if ( AppState.hub ) AppState.hub.message( d.text === 'bad token' ? 'Bonds are an owner action: click 🔑 in the mayor panel and enter the token' : 'Bond refused: ' + d.text );
+        }
 
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );
 

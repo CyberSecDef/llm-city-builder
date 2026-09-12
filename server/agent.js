@@ -139,6 +139,14 @@ export class AgentHost extends EventEmitter {
 
     _emitState () { this.emit( 'state', this.state() ); }
 
+    // Something the server did on the owner's behalf; the mayor hears about
+    // it like a viewer message, viewers see it as a status line.
+    notify ( text ) {
+        this.api.inbox.push( { name: 'System', text } );
+        this._add( { kind: 'status', text } );
+        this._wake?.();
+    }
+
     chat ( name, text ) {
         this.api.inbox.push( { name, text } );
         this._add( { kind: 'user', name, text } );

@@ -110,6 +110,15 @@ async function onAdmin ( action, msg ) {
         case 'resume':   if ( !host ) return 'no agent'; return host.resume() === false ? `spend cap $${ host.capUsd } reached; raise it first` : undefined;
         case 'stop':     if ( !host ) return 'no agent'; host.stop(); return;
         case 'save':     await save.write( { sim, host, agentSpec } ); return;
+        case 'bond': {
+            const amount = Math.round( Number( msg.amount ) ) || 0;
+            if ( ![ 5000, 10000, 20000 ].includes( amount ) ) return 'bond must be 5000, 10000 or 20000';
+            const before = api._funds();
+            sim.post( { tell: 'ISSUEBOND', amount } );
+            if ( api._funds() === before ) return `bond refused: the debt cap ($${ api.game.simulation.budget.MAX_BOND_DEBT }) would be exceeded`;
+            host?.notify( `The owner issued a $${ amount } municipal bond (7% interest per year). City funds are now $${ api._funds() }.` );
+            return;
+        }
         case 'set_cap':  if ( !host ) return 'no agent'; host.setCap( Number( msg.usd ) || 0 ); return;
         case 'new_game': {
             const size = parseMapSize( msg.mapSize ) || MAP_SIZE;

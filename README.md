@@ -62,7 +62,7 @@ Click any tile in the viewer (a plain click, not a drag) for a card with what it
 
 ## Owner controls and saves
 
-The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
+The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row. The Budget panel's +$5K / +$10K / +$20K bond buttons also become live for the owner (7% interest, $50K debt cap, and the mayor is told). The control row has: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
 
 Everything lives in one save file per game (`GAME`, default `saves/latest.json`): the city, the transcript and ledger, unread viewer messages, and the mayor's own conversation (API history, Codex thread, or Claude Code session). Stop the server, start it again, and the mayor carries on mid-thought.
 
