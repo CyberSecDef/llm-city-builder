@@ -59,7 +59,7 @@ export class Hub_Economy extends Hub_Pannel {
 
         row.addEventListener('click', function(e){
             e.preventDefault();
-            Main.setIndustrySpec(this.dataset.id);
+            AppState.main.setIndustrySpec(this.dataset.id);
         }, false);
 
         container.appendChild(row);

@@ -181,7 +181,7 @@ export class WorkerBridge {
             // focus, budget apply) go to the server as owner actions.
             if ( OWNER_TELLS.has( data.tell ) ) {
                 let token = null; try { token = localStorage.getItem( 'city-admin' ); } catch {}
-                data = { tell: 'ADMIN', token, action: data.tell === 'ISSUEBOND' ? 'bond' : 'sim', ...data, tell: undefined, sim: data.tell };
+                data = { ...data, sim: data.tell, tell: 'ADMIN', token, action: data.tell === 'ISSUEBOND' ? 'bond' : 'sim' };
             }
             // Viewers only send read-only requests; the server drops the rest.
             if ( this._socket.readyState === WebSocket.OPEN ) this._socket.send( JSON.stringify( data ) );

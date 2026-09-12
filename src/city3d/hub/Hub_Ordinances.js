@@ -62,7 +62,7 @@ export class Hub_Ordinances extends Hub_Pannel {
 
         row.addEventListener('click', function(e){
             e.preventDefault();
-            Main.setOrdinance(this.dataset.id);
+            AppState.main.setOrdinance(this.dataset.id);
         }, false);
 
         container.appendChild(row);
