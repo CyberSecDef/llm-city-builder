@@ -41,6 +41,7 @@ AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT 
 | env | meaning |
 |---|---|
 | `PORT` | http/ws port (default 8787) |
+| `HOST` | bind address, default `0.0.0.0` so anyone on the LAN can watch; `127.0.0.1` to keep it local |
 | `AGENT` | `claude-code[:model]`, `api[:model]` or `codex[:model]` |
 | `MAX_BUDGET_USD` | spend cap for any driver: at the cap the mayor and the clock pause and viewers see why; the owner can raise it. For claude-code it is also passed to the CLI |
 | `MAX_CONTEXT_TOKENS` | api only: prompt size that triggers history compaction (default 80000) |

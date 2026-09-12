@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import os from 'node:os';
 
 import { Sim } from './sim.js';
 import { Relay } from './relay.js';
@@ -21,6 +22,7 @@ import { GameSave } from './save.js';
 
 const ROOT = path.resolve( path.dirname( fileURLToPath( import.meta.url ) ), '..' );
 const PORT = Number( process.env.PORT ) || 8787;
+const HOST = process.env.HOST || '0.0.0.0';     // LAN by default; HOST=127.0.0.1 to keep it local
 
 const MIME = {
     '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
@@ -80,9 +82,10 @@ if ( save.exists() ) {
     if ( !agentSpec && saved.agentSpec ) agentSpec = saved.agentSpec;
 }
 
-server.listen( PORT, () => {
-    console.log( `llm-city-builder  http://localhost:${ PORT }/` );
-    console.log( `owner token       ${ ADMIN_TOKEN }   (open http://localhost:${ PORT }/?admin=${ ADMIN_TOKEN })` );
+server.listen( PORT, HOST, () => {
+    const urls = [ 'localhost', ...lanAddresses() ].map( ( h ) => `http://${ h }:${ PORT }/` );
+    console.log( `llm-city-builder  ${ urls.join( '  ' ) }` );
+    console.log( `owner token       ${ ADMIN_TOKEN }   (open ${ urls[ 1 ] || urls[ 0 ] }?admin=${ ADMIN_TOKEN })` );
     if ( saved ) sim.load( saved.city );
     else sim.newGame( MAP_SIZE );
     if ( process.env.DEMO && !saved ) demoBuild();
@@ -116,6 +119,11 @@ async function onAdmin ( action, msg ) {
         }
         default: return `unknown action ${ action }`;
     }
+}
+
+function lanAddresses () {
+    if ( HOST !== '0.0.0.0' && HOST !== '::' ) return [ HOST ];
+    return Object.values( os.networkInterfaces() ).flat().filter( ( i ) => i && i.family === 'IPv4' && !i.internal ).map( ( i ) => i.address );
 }
 
 function parseMapSize ( s ) {
