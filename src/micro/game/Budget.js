@@ -81,6 +81,8 @@ export class Budget {
         // whole budget into NaN at the next tax cycle.
         for (var i = 0, l = Micro.BudgetProps.length; i < l; i++)
             if (saveData[Micro.BudgetProps[i]] !== undefined) this[Micro.BudgetProps[i]] = saveData[Micro.BudgetProps[i]];
+        // Debt issued before repayment schedules existed: put it on a 10-year schedule now.
+        if (this.bondDebt > 0 && !this.bondAnnualPrincipal) this.bondAnnualPrincipal = Math.round(this.bondDebt / this.BOND_TERM_YEARS);
 
         EventEmitter.emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
         EventEmitter.emitEvent(Messages.FUNDS_CHANGED, this.totalFunds);
