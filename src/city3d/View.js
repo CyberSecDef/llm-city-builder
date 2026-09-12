@@ -27,7 +27,7 @@ const tmpPos = new THREE.Vector2( 0, 0 );
 
 // Remote-viewer reconstruction tables (see rebuildFromTiles).
 const REMOTE_BUILDING = new Set( [ ...Base.R, ...Base.C, ...Base.I ] );
-const REMOTE_TOWN = { 774: [ 4, 3 ], 765: [ 7, 3 ], 750: [ 8, 4 ], 816: [ 9, 4 ], 698: [ 10, 4 ], 784: [ 11, 4 ], 716: [ 12, 6 ] };   // centre tile → [geo, size]
+const REMOTE_TOWN = { 774: [ 4, 3 ], 765: [ 7, 3 ], 750: [ 8, 4 ], 816: [ 9, 4 ], 698: [ 10, 4 ], 784: [ 11, 4 ], 716: [ 12, 6 ], 840: [ 5, 1 ] };   // centre tile → [geo, size]; 840 = park fountain
 
 export class View {
 
@@ -1913,6 +1913,58 @@ export class View {
 		const tiles = [];
 		for ( let y = 0; y < h; y++ ) for ( let x = 0; x < w; x++ ) if ( t[ x + y * w ] >= 64 ) tiles.push( [ x, y ] );
 		this.liftTiles( tiles );
+	}
+
+	// Periodic self-check for remote viewers. Whatever a missed or mistimed
+	// message left out of step with the tile map is fixed layer by layer:
+	// ground textures (drawLayer skips unchanged tiles, so it is a scan),
+	// zone/building meshes, and tree meshes on tiles that are no longer trees.
+	reconcile () {
+
+		const t = AppState.tilesData; if ( !t ) return;
+		const w = this.mapSize[0], h = this.mapSize[1];
+		const key = ( x, y ) => x + y * 4096;
+
+		for ( let l = 0; l < this.nlayers; l++ ) this.drawLayer( l, false );
+		this.updateLayer();
+
+		const want = new Map();
+		for ( let y = 0; y < h; y++ ) for ( let x = 0; x < w; x++ ) {
+			const v = t[ x + y * w ];
+			if ( v < 240 ) continue;
+			if ( REMOTE_BUILDING.has( v ) ) want.set( key( x, y ), [ x, y, 3, v, 'building' ] );
+			else if ( REMOTE_TOWN[ v ] ) want.set( key( x, y ), [ x, y, REMOTE_TOWN[ v ][ 1 ], REMOTE_TOWN[ v ][ 0 ], 'town' ] );
+		}
+
+		const dirtyB = new Set(), dirtyT = new Set();
+		for ( let l = 0; l < this.nlayers; l++ ) {
+			const bl = this.buildingLists[ l ];
+			if ( bl ) for ( let i = bl.length - 1; i >= 0; i-- ) {
+				const ar = bl[ i ], e = want.get( key( ar[0], ar[2] ) );
+				if ( !e || e[4] !== 'building' ) { if ( ar[5] === 1 ) this.removeBaseHouse( ar[0], ar[1], ar[2] ); bl.splice( i, 1 ); dirtyB.add( l ); continue; }
+				if ( ar[3] !== e[3] ) { ar[3] = e[3]; dirtyB.add( l ); }
+				want.delete( key( ar[0], ar[2] ) );
+			}
+			const tl = this.townLists[ l ];
+			if ( tl ) for ( let i = tl.length - 1; i >= 0; i-- ) {
+				const ar = tl[ i ], e = want.get( key( ar[0], ar[2] ) );
+				if ( !e || e[4] !== 'town' || e[3] !== ar[3] ) { tl.splice( i, 1 ); dirtyT.add( l ); continue; }
+				want.delete( key( ar[0], ar[2] ) );
+			}
+			const tr = this.treeLists[ l ];
+			if ( tr ) {
+				const keep = tr.filter( ( ar ) => { const v = t[ ar[0] + ar[2] * w ]; return v >= 21 && v <= 43; } );
+				if ( keep.length !== tr.length ) { this.treeLists[ l ] = keep; this.rebuildTreeLayer( l ); }
+			}
+		}
+		for ( const [ x, y, size, v, kind ] of want.values() ) {
+			this._placeRemote( x, y, size, v, kind );
+			( kind === 'town' ? dirtyT : dirtyB ).add( this.findLayer( x, y ) );
+		}
+		for ( const l of dirtyT ) this.rebuildTownLayer( l );
+		for ( const l of dirtyB ) this.rebuildBuildingLayer( l );
+		return { fixed: want.size, layers: dirtyB.size + dirtyT.size };
+
 	}
 
 	_placeRemote ( x, y, size, v, kind ) {

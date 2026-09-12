@@ -193,3 +193,9 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   (makePlanar to 0.25); `liftBuiltShore()` on snapshots; and `newGame()`
   mutes the relay until the starter road is laid, then `relay.resync()`
   sends every viewer a fresh snapshot.
+- Viewer self-heal (Sep 12 2026): `View.reconcile()` every 5 s in remote
+  mode — drawLayer scan for missed ground tiles, zone/building lists
+  reconciled against zone-centre tile values (missing added, stale removed,
+  changed levels updated), tree meshes dropped where the tile is no longer a
+  tree. Base.C had 475 where CZB+36 = 472, leaving one commercial level
+  invisible everywhere; fixed. Park fountains (840) are now reconstructed.

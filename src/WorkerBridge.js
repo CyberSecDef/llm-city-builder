@@ -207,7 +207,11 @@ export class WorkerBridge {
             AppState.tilesData = d.tilesData;
             AppState.view3d.paintMap( d.mapSize, d.island, AppState.withHeight );
             if ( d.cityData ) AppState.view3d.loadCityBuild( d.cityData );   // null for a remote snapshot
-            else if ( AppState.remote ) AppState.view3d.rebuildFromTiles();
+            else if ( AppState.remote ) {
+                AppState.view3d.rebuildFromTiles();
+                // Self-heal: anything a missed message left unrendered is fixed within a few seconds.
+                if ( !this._reconcile ) this._reconcile = setInterval( () => { try { AppState.view3d.reconcile(); } catch ( e ) { console.warn( 'reconcile', e ); } }, 5000 );
+            }
             if ( d.isStart ) {
                 AppState.main.playMap()
                 //AppState.view3d.startPlay();
