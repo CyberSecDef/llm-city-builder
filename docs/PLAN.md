@@ -204,3 +204,13 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   ZONEBIT, zone population from the zone modules, blockMaps raw values,
   QueryTool text) → `TILE_INFO` → `src/ui/TileInfo.js` card. Note upstream
   has no `hub.openQuery`, so the game's own query window never worked here.
+- Ground textures (Sep 12 2026, the real "roads disappear" bug): tile
+  painting uses `copyTextureToTexture` into each layer's material map, which
+  needs the GPU texture to exist. A snapshot is painted before the first
+  frame, so every copy failed with `bindTexture: invalid target` /
+  `texSubImage2D: invalid format` and the tiles were silently lost; only
+  later incremental changes (or a layer that happened to be rendered first)
+  showed. Single-player never noticed because a new map has nothing to
+  paint. `View.ensureTextures()` now calls `renderer.initTexture()` for a
+  layer's map/normal/roughness before drawing, in drawLayer and
+  resetLandMaterial. Headless screenshots show roads for the first time.

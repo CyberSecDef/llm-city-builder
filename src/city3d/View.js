@@ -326,6 +326,20 @@ export class View {
 
 	getRenderer(){ return renderer; }
 
+	// copyTextureToTexture writes straight into the GPU texture, which only
+	// exists once the texture has been rendered (or initialised) at least once.
+	// Before that the copy is a silent WebGL error and the tile is lost — which
+	// is what happens to every tile painted from a snapshot before the first
+	// frame. Force the upload first.
+	ensureTextures ( material ) {
+		if ( !material || AppState.isWebGPU ) return;
+		const backend = renderer.backend;
+		for ( const key of [ 'map', 'normalMap', 'roughnessMap' ] ) {
+			const t = material[ key ];
+			if ( t && !( backend.get( t ) || {} ).textureGPU ) renderer.initTexture( t );
+		}
+	}
+
 	preIntro() {
 
 		this.center.x = 19*0.5;
@@ -2666,6 +2680,7 @@ export class View {
 		const pix = 32;
 		const mid = pix * 0.5;
 
+		this.ensureTextures( MAT_LAND[layer] );
 		const render = AppState.isWebGPU ? renderer : renderer.backend; 
 		
 		while( y-- ){

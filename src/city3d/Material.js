@@ -273,6 +273,7 @@ export class Material {
 
 		while(i--){
 
+			AppState.view3d.ensureTextures( MAT_LAND[i] );
 			render.copyTextureToTexture( baseTexture, MAT_LAND[i].map, null, pos );
 		    if( AppState.isWithNormal ) render.copyTextureToTexture( baseNormal, MAT_LAND[i].normalMap, null, pos );
 		}
