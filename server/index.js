@@ -134,6 +134,14 @@ async function onAdmin ( action, msg ) {
                 host?.notify( `The owner changed the budget: taxes R ${ b.resTaxRate }% C ${ b.comTaxRate }% I ${ b.indTaxRate }%, funding roads ${ b.roadRate }% fire ${ b.fireRate }% police ${ b.policeRate }%.` );
                 return;
             }
+            if ( tell === 'REPAYBOND' ) {
+                const before = api.game.simulation.budget.bondDebt;
+                sim.post( { tell, amount: Math.round( Number( msg.amount ) ) || 0 } );
+                const paid = before - api.game.simulation.budget.bondDebt;
+                if ( !paid ) return before ? 'nothing repaid: no funds' : 'no bond debt';
+                host?.notify( `The owner repaid $${ paid } of bond debt. Remaining debt $${ api.game.simulation.budget.bondDebt }, funds $${ api._funds() }.` );
+                return;
+            }
             return `not an owner action: ${ tell }`;
         }
         case 'bond': {

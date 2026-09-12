@@ -21,7 +21,7 @@ const STALL_THRESHOLD_MS = 10000;
 // How often the watchdog polls (ms)
 const WATCHDOG_INTERVAL_MS = 3000;
 // Viewer-mode panel messages that mutate the city; relayed as owner actions.
-const OWNER_TELLS = new Set( [ 'ISSUEBOND', 'SETORDINANCE', 'SETINDUSTRYSPEC', 'NEWBUDGET' ] );
+const OWNER_TELLS = new Set( [ 'ISSUEBOND', 'REPAYBOND', 'SETORDINANCE', 'SETINDUSTRYSPEC', 'NEWBUDGET' ] );
 
 export class WorkerBridge {
 

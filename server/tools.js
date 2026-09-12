@@ -69,6 +69,16 @@ export const TOOL_DEFS = [
         },
     },
     {
+        name: 'issue_bond',
+        description: 'Borrow money: a municipal bond of 5000, 10000 or 20000 is credited to funds at once. Costs 7% interest a year and the principal is repaid automatically over 10 years, both taken out of funds each year. Total debt is capped at 50000. Use when a power plant or a growth push is worth more than the interest.',
+        input: { amount: z.number().int().describe( '5000, 10000 or 20000' ) },
+    },
+    {
+        name: 'repay_bond',
+        description: 'Pay bond principal early from funds (omit amount to pay everything you can). Reduces future interest.',
+        input: { amount: z.number().int().min( 1 ).optional() },
+    },
+    {
         name: 'say',
         description: 'Talk to the people watching. Use it to explain what you are about to do and why, react to what happened, and answer their messages. One or two sentences; keep it lively.',
         input: { text: z.string().min( 1 ).max( 600 ) },

@@ -158,7 +158,7 @@ export class GameApi extends EventEmitter {
             speed: this.sim.speed, mapSize: this.sim.mapSize,
             taxes: { residential: b.resTaxRate, commercial: b.comTaxRate, industrial: b.indTaxRate },
             funding: { road: b.roadRate, fire: b.fireRate, police: b.policeRate },
-            bondDebt: b.bondDebt,
+            bonds: { debt: b.bondDebt, paidEachYear: b.bondAnnualPayment + b.bondAnnualPrincipal, interest: b.bondAnnualPayment, principal: b.bondAnnualPrincipal, maxDebt: b.bondMaxDebt },
             zones: counts,
         } );
     }
@@ -360,6 +360,25 @@ export class GameApi extends EventEmitter {
             taxes: { residential: n.resTaxRate, commercial: n.comTaxRate, industrial: n.indTaxRate },
             funding: { road: n.roadRate, fire: n.fireRate, police: n.policeRate },
         }, args );
+    }
+
+    // Municipal bonds: cash now, 7% interest a year, principal repaid over 10 years.
+    issue_bond ( { amount } ) {
+        const bud = this.game.simulation.budget;
+        if ( ![ 5000, 10000, 20000 ].includes( amount ) ) return this._fail( 'issue_bond', { amount }, 'amount must be 5000, 10000 or 20000' );
+        if ( bud.bondDebt + amount > bud.MAX_BOND_DEBT ) return this._fail( 'issue_bond', { amount }, `debt cap: $${ bud.MAX_BOND_DEBT } total, currently $${ bud.bondDebt }` );
+        this.sim.post( { tell: 'ISSUEBOND', amount } );
+        return this._ok( 'issue_bond', { amount, debt: bud.bondDebt, paidEachYear: bud.getBondAnnualPayment() + bud.getBondAnnualPrincipal(), funds: this._funds() }, { amount } );
+    }
+
+    repay_bond ( { amount } ) {
+        const bud = this.game.simulation.budget;
+        if ( !bud.bondDebt ) return this._fail( 'repay_bond', { amount }, 'no bond debt' );
+        const before = bud.bondDebt;
+        this.sim.post( { tell: 'REPAYBOND', amount: amount || bud.bondDebt } );
+        const paid = before - bud.bondDebt;
+        if ( !paid ) return this._fail( 'repay_bond', { amount }, 'no funds to repay with' );
+        return this._ok( 'repay_bond', { paid, debt: bud.bondDebt, funds: this._funds() }, { amount } );
     }
 
     say ( { text } ) {

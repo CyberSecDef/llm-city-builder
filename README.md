@@ -62,7 +62,7 @@ Click any tile in the viewer (a plain click, not a drag) for a card with what it
 
 ## Owner controls and saves
 
-The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row. The Budget panel (tax/funding sliders and the +$5K / +$10K / +$20K bond buttons), the Orders panel (ordinances) and the Economy panel (industry focus) also become live for the owner; every change is announced to the mayor. The control row has: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
+The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row. The Budget panel (tax/funding sliders, the +$5K / +$10K / +$20K bond buttons and Repay), the Orders panel (ordinances) and the Economy panel (industry focus) also become live for the owner; every change is announced to the mayor. The control row has: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
 
 Everything lives in one save file per game (`GAME`, default `saves/latest.json`): the city, the transcript and ledger, unread viewer messages, and the mayor's own conversation (API history, Codex thread, or Claude Code session). Stop the server, start it again, and the mayor carries on mid-thought.
 
@@ -85,6 +85,7 @@ Everything lives in one save file per game (`GAME`, default `saves/latest.json`)
 | `build_line tool x0 y0 x1 y1` | road / rail / wire, straight or L-shaped |
 | `bulldoze x y w h` | clear a rectangle |
 | `set_speed`, `set_budget` | pace and taxes / funding |
+| `issue_bond`, `repay_bond` | borrow 5/10/20k at 7% (auto-repaid over 10 years, $50k cap), or pay principal early |
 | `say text` | talk to the viewers |
 | `wait months` | let the sim run, then report |
 

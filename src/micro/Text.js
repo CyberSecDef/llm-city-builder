@@ -79,7 +79,7 @@ const Text = function(){
     neutralMessages[Messages.WELCOMEBACK] = 'Welcome to 3D City';
     neutralMessages[Messages.SEASON_CHANGED] = 'A new season has arrived';
     neutralMessages[Messages.NEED_SCHOOLS] = 'Citizens demand more schools';
-    neutralMessages[Messages.BOND_PAYMENT_DUE] = 'Annual bond interest payment deducted';
+    neutralMessages[Messages.BOND_PAYMENT_DUE] = 'Annual bond payment deducted (interest + principal)';
     neutralMessages[Messages.BOND_ISSUED] = 'Municipal bond issued';
 
     var badMessages = {};

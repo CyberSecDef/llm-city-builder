@@ -51,6 +51,10 @@ export class Budget {
         this.bondDebt = 0;
         this.bondInterestRate = 0.07;
         this.MAX_BOND_DEBT = 50000;
+        // bondAnnualPrincipal: principal repaid automatically each tax cycle,
+        // 1/BOND_TERM_YEARS of every bond issued (so a bond retires in 10 years)
+        this.bondAnnualPrincipal = 0;
+        this.BOND_TERM_YEARS = 10;
 
         // ── Water supply & sewage ─────────────────────────────────────
         this.waterMaintenanceBudget = 0;
@@ -91,12 +95,28 @@ export class Budget {
         return Math.round(this.bondDebt * this.bondInterestRate);
     }
 
+    // Principal due each year under the repayment schedule.
+    getBondAnnualPrincipal () {
+        return Math.min(this.bondAnnualPrincipal, this.bondDebt);
+    }
+
+    // Once a year: interest, then the scheduled slice of principal. Both are
+    // capped by cash on hand; a broke city just carries the debt.
+    payBondInstalment () {
+        var interest = Math.min(this.getBondAnnualPayment(), this.totalFunds);
+        if (interest > 0) this.spend(interest);
+        var principal = this.repayBond(this.getBondAnnualPrincipal());
+        if (this.bondDebt === 0) this.bondAnnualPrincipal = 0;
+        return { interest: interest, principal: principal };
+    }
+
     // Issue a municipal bond: credit the city coffers immediately, add to debt.
     // Returns true if the bond was issued, false if the debt cap would be exceeded.
     issueBond ( amount ) {
         if (amount <= 0) return false;
         if (this.bondDebt + amount > this.MAX_BOND_DEBT) return false;
         this.bondDebt += amount;
+        this.bondAnnualPrincipal += Math.round(amount / this.BOND_TERM_YEARS);
         this.setFunds(this.totalFunds + amount);
         return true;
     }
@@ -109,6 +129,7 @@ export class Budget {
         if (actual <= 0) return 0;
         this.bondDebt -= actual;
         this.setFunds(this.totalFunds - actual);
+        if (this.bondDebt === 0) this.bondAnnualPrincipal = 0;
         return actual;
     }
 

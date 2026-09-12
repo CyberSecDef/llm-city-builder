@@ -472,11 +472,10 @@ export class Simulation {
                     // Deduct annual ordinance costs from city funds
                     let ordCost = this.ordinances.getAnnualCost();
                     if (ordCost > 0) this.budget.spend(ordCost);
-                    // Deduct annual bond interest payments
-                    let bondPayment = this.budget.getBondAnnualPayment();
-                    if (bondPayment > 0) {
-                        this.budget.spend(bondPayment);
-                        this.messageManager.sendMessage(Messages.BOND_PAYMENT_DUE);
+                    // Annual bond instalment: interest plus scheduled principal
+                    if (this.budget.bondDebt > 0) {
+                        let paid = this.budget.payBondInstalment();
+                        if (paid.interest + paid.principal > 0) this.messageManager.sendMessage(Messages.BOND_PAYMENT_DUE);
                     }
                     this.evaluation.cityEvaluation();
                 };

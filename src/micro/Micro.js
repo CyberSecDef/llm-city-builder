@@ -26,7 +26,7 @@ export const Micro = {
     BudgetProps : ['autoBudget', 'totalFunds', 'policePercent', 'roadPercent', 'firePercent', 'roadSpend',
                    'policeSpend', 'fireSpend', 'roadMaintenanceBudget', 'policeMaintenanceBudget',
                    'fireMaintenanceBudget', 'cityTax', 'roadEffect', 'policeEffect', 'fireEffect',
-                   'resTaxRate', 'comTaxRate', 'indTaxRate', 'bondDebt',
+                   'resTaxRate', 'comTaxRate', 'indTaxRate', 'bondDebt', 'bondAnnualPrincipal',
                    'waterPercent', 'waterSpend', 'waterMaintenanceBudget', 'waterEffect',
                    'educationPercent', 'educationSpend', 'educationMaintenanceBudget', 'educationEffect'
                    ],

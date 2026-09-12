@@ -95,6 +95,7 @@ export class CityGame {
         if( p == "SETORDINANCE")  Game.setOrdinance(e.data.id);
 
         if( p == "ISSUEBOND")     Game.issueBond(e.data.amount);
+        if( p == "REPAYBOND")     Game.repayBond(e.data.amount);
 
         if( p == "GETINDUSTRYSPEC") Game.getIndustrySpec();
         if( p == "SETINDUSTRYSPEC") Game.setIndustrySpec(e.data.id);
@@ -510,6 +511,7 @@ export class MainGame {
                     taxesCollected: b.taxFund,
                     bondDebt:            b.bondDebt,
                     bondAnnualPayment:   b.getBondAnnualPayment(),
+                    bondAnnualPrincipal: b.getBondAnnualPrincipal(),
                     bondMaxDebt:         b.MAX_BOND_DEBT,
                     waterFund:      b.waterFund,
                     waterRate:      Math.floor(b.waterPercent * 100),
@@ -598,6 +600,7 @@ export class MainGame {
             taxesCollected: b.taxFund,
             bondDebt:            b.bondDebt,
             bondAnnualPayment:   b.getBondAnnualPayment(),
+            bondAnnualPrincipal: b.getBondAnnualPrincipal(),
             bondMaxDebt:         b.MAX_BOND_DEBT,
             waterFund:      b.waterFund,
             waterRate:      Math.floor(b.waterPercent * 100),
@@ -718,6 +721,19 @@ export class MainGame {
             );
         }
         // Refresh budget panel so the UI shows updated debt
+        this.handleBudgetRequest();
+    }
+
+    repayBond (amount) {
+        let paid = this.simulation.budget.repayBond(amount);
+        if (paid > 0) {
+            this.simulation.cityHistory.addEvent(
+                'economic',
+                'Repaid $' + paid + ' of municipal bonds (remaining debt: $' + this.simulation.budget.bondDebt + ')',
+                this.simulation.cityTime,
+                this.simulation.startingYear
+            );
+        }
         this.handleBudgetRequest();
     }
 

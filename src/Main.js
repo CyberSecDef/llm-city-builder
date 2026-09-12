@@ -222,6 +222,10 @@ export class Main {
         AppState.workerBridge.post({ tell:"ISSUEBOND", amount:amount });
     }
 
+    static repayBond(amount) {
+        AppState.workerBridge.post({ tell:"REPAYBOND", amount:amount });
+    }
+
     static getIndustrySpec() {
         AppState.workerBridge.post({ tell:"GETINDUSTRYSPEC" });
     }

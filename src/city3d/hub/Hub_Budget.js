@@ -29,6 +29,7 @@ export class Hub_Budget extends Hub_Pannel {
 
         this.bondDebt =  0;
         this.bondAnnualPayment = 0;
+        this.bondAnnualPrincipal = 0;
         this.bondMaxDebt = 0
 
         this.cashFlow = 0
@@ -74,9 +75,10 @@ export class Hub_Budget extends Hub_Pannel {
         if (this.bondDebtInfo) {
             this.bondDebtInfo.innerHTML = '<span style="color:rgba(180,210,240,0.6);">Outstanding debt:</span>'
                 + ' <span style="color:' + debtColor + '; font-weight:600;">' + bondDebt + '$</span>'
-                + '<br><span style="color:rgba(180,210,240,0.6);">Interest / yr:</span>'
-                + ' <span style="color:' + (bondPayment > 0 ? '#f0b84a' : 'rgba(180,210,240,0.6)') + ';">' + bondPayment + '$</span>'
-                + '<br><span style="color:rgba(180,210,240,0.4); font-size:10px;">Max: ' + bondMax + '$ (7% annual)</span>';
+                + '<br><span style="color:rgba(180,210,240,0.6);">Paid each year:</span>'
+                + ' <span style="color:' + (bondPayment > 0 ? '#f0b84a' : 'rgba(180,210,240,0.6)') + ';">' + (bondPayment + (this.bondAnnualPrincipal || 0)) + '$</span>'
+                + '<span style="color:rgba(180,210,240,0.4); font-size:10px;"> (' + bondPayment + '$ interest + ' + (this.bondAnnualPrincipal || 0) + '$ principal)</span>'
+                + '<br><span style="color:rgba(180,210,240,0.4); font-size:10px;">Max: ' + bondMax + '$ · 7% interest · repaid over 10 years, or early below</span>';
         }
 
 	}
@@ -144,6 +146,16 @@ export class Hub_Budget extends Hub_Pannel {
         b5k.addEventListener( 'click', function(e){ e.preventDefault(); AppState.main.issueBond(5000);  }, false);
         b10k.addEventListener('click', function(e){ e.preventDefault(); AppState.main.issueBond(10000); }, false);
         b20k.addEventListener('click', function(e){ e.preventDefault(); AppState.main.issueBond(20000); }, false);
+
+        var repayRow = document.createElement('div');
+        repayRow.style.cssText = 'display:flex; gap:4px; pointer-events:auto; margin-bottom:6px;';
+        body.appendChild(repayRow);
+        var r5k  = this.hubMain.addButton(repayRow, 'Repay $5K',  [70, 22, 12], null);
+        var rAll = this.hubMain.addButton(repayRow, 'Repay all',  [70, 22, 12], null);
+        r5k.title  = 'Pay $5,000 of bond principal from city funds';
+        rAll.title = 'Pay off all outstanding bond debt (as far as funds allow)';
+        r5k.addEventListener( 'click', function(e){ e.preventDefault(); AppState.main.repayBond(5000); }, false);
+        rAll.addEventListener('click', function(e){ e.preventDefault(); AppState.main.repayBond(1e9); }, false);
 
         
 

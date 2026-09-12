@@ -214,3 +214,9 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   paint. `View.ensureTextures()` now calls `renderer.initTexture()` for a
   layer's map/normal/roughness before drawing, in drawLayer and
   resetLandMaterial. Headless screenshots show roads for the first time.
+- Bonds (Sep 12 2026): were interest-only forever (repayBond existed but was
+  never called). Now `Budget.payBondInstalment()` runs each tax cycle:
+  interest (7%) plus `bondAnnualPrincipal` (1/10 of every bond issued),
+  both capped by cash on hand; `bondAnnualPrincipal` is saved with the
+  budget. REPAYBOND message + Repay buttons (owner) + issue_bond/repay_bond
+  mayor tools; get_state reports `bonds{}`.
