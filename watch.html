@@ -15,10 +15,12 @@
 
 	import { Main } from './build/MainGame.module.js';
 	import { AgentPanel } from './src/ui/AgentPanel.js';
+	import { TileInfo } from './src/ui/TileInfo.js';
 
 	const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
 	Main.init( null, false, { remote: proto + location.host + '/ws' } );
 	new AgentPanel();
+	new TileInfo();
 
 </script>
 </body></html>

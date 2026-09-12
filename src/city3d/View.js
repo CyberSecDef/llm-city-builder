@@ -1992,8 +1992,9 @@ export class View {
 
 		const t = Base.toolSet.find( ( s ) => s.tool === tool );
 		if ( !t ) return;
+		const prev = this.currentTool;
 		this.currentTool = t;
-		try { this.build( x, y ); } finally { this.currentTool = null; }
+		try { this.build( x, y ); } finally { this.currentTool = prev; }
 
 	}
 
@@ -2372,6 +2373,17 @@ export class View {
 	onMouseUp  (e) {
 
 		e.preventDefault();
+
+		// Remote viewer: a plain left click (no drag) inspects the tile under it.
+		if ( AppState.remote && !this.currentTool && this.mouse.button === 1 && this.mouse.down ) {
+			const px = e.clientX ?? e.changedTouches?.[0]?.clientX, py = e.clientY ?? e.changedTouches?.[0]?.clientY;
+			if ( px !== undefined && Math.hypot( px - this.mouse.ox, py - this.mouse.oy ) < 5 ) {
+				this.rayVector.x = ( px / this.vsize.x ) * 2 - 1;
+				this.rayVector.y = - ( py / this.vsize.y ) * 2 + 1;
+				this.rayTest();
+				if ( this.raypos.x >= 0 ) AppState.workerBridge.post( { tell: 'QUERY_TILE', x: this.raypos.x, y: this.raypos.z } );
+			}
+		}
 
 		if(this.currentTool && this.mouse.button===3 && this.ease.x===0 && this.ease.y === 0 ){
 	    	this.tool.position.set(-1, -1, -1);

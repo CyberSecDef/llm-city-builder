@@ -8,6 +8,9 @@
 import { EventEmitter } from 'node:events';
 import { CityGame } from '../src/micro/CityGame.js';
 import { Tile } from '../src/micro/Tile.js';
+import { Residential } from '../src/micro/zone/Residential.js';
+import { Commercial } from '../src/micro/zone/Commercial.js';
+import { Industrial } from '../src/micro/zone/Industrial.js';
 
 const LANDFILL_COST = 25;   // $ per shore-water tile turned into land
 
@@ -35,6 +38,42 @@ export const LEGEND = [
     [ 'E', 'power plant' ], [ 'D', 'stadium' ], [ 'O', 'seaport' ], [ 'A', 'airport' ], [ 'p', 'park' ],
     [ '?', 'other' ],
 ];
+
+// Human name for a tile value (what the viewer's click card shows).
+export function tileName ( v ) {
+    const t = v & 0x3FF;
+    if ( t === Tile.DIRT ) return 'open land';
+    if ( t <= Tile.WATER_HIGH ) return 'water';
+    if ( t <= Tile.WOODS5 ) return 'trees';
+    if ( t <= Tile.LASTRUBBLE ) return 'rubble';
+    if ( t <= Tile.LASTFLOOD ) return 'flood';
+    if ( t === Tile.RADTILE ) return 'radioactive waste';
+    if ( t <= Tile.LASTFIRE ) return 'fire';
+    if ( t <= Tile.LASTROAD ) return t >= Tile.LTRFBASE ? 'road (traffic)' : 'road';
+    if ( t <= Tile.LASTPOWER ) return 'power line';
+    if ( t <= Tile.LASTRAIL ) return 'rail';
+    if ( t === Tile.HRAILROAD || t === Tile.VRAILROAD ) return 'rail crossing';
+    if ( t === Tile.ROADVPOWERH ) return 'road';
+    if ( t < Tile.HOSPITALBASE ) return t === Tile.FREEZ ? 'empty residential zone' : ( t >= Tile.LHTHR && t <= Tile.HHTHR ) ? 'house' : 'residential zone';
+    if ( t < Tile.CHURCHBASE ) return 'hospital';
+    if ( t < Tile.COMBASE ) return 'school';
+    if ( t < Tile.INDBASE ) return t === Tile.COMCLR ? 'empty commercial zone' : 'commercial zone';
+    if ( t < Tile.PORTBASE ) return t === Tile.INDCLR ? 'empty industrial zone' : 'industrial zone';
+    if ( t < Tile.AIRPORTBASE ) return 'seaport';
+    if ( t < Tile.COALBASE ) return 'airport';
+    if ( t < Tile.FIRESTBASE ) return 'coal power plant';
+    if ( t < Tile.POLICESTBASE ) return 'fire station';
+    if ( t < Tile.STADIUMBASE ) return 'police station';
+    if ( t < Tile.NUCLEARBASE ) return 'stadium';
+    if ( t <= Tile.LASTZONE ) return 'nuclear power plant';
+    if ( t >= Tile.HBRDG0 && t <= Tile.HBRDG3 || t >= Tile.VBRDG0 && t <= Tile.VBRDG3 ) return 'bridge';
+    if ( t >= Tile.RADAR0 && t <= Tile.RADAR0 + 7 ) return 'airport radar';
+    if ( t === Tile.FOUNTAIN ) return 'park fountain';
+    if ( t >= Tile.COALSMOKE1 && t < Tile.FOOTBALLGAME1 ) return 'coal power plant';
+    if ( t >= Tile.FOOTBALLGAME1 && t < Tile.VBRDG0 ) return 'stadium (game on)';
+    if ( t >= Tile.NUKESWIRL ) return 'nuclear power plant';
+    return `tile ${ t }`;
+}
 
 export function tileChar ( v ) {
     const t = v & 0x3FF;
@@ -186,6 +225,41 @@ export class GameApi extends EventEmitter {
         const v = this.map.getTileValue( x, y );
         const info = txt.replace( /<br>/g, '\n' ).trim();
         return this._ok( 'query', { x, y, tile: tileChar( v ), powered: !!( this.map.getTile( x, y ).getRawValue() & Tile.POWERBIT ), info }, { x, y } );
+    }
+
+    // Everything the sim knows about one tile, for the viewer's click card.
+    // Not a tool (viewers call it through the relay); does not touch the log.
+    inspect ( { x, y } ) {
+        if ( !this.map.testBounds( x, y ) ) return null;
+        const raw = this.map.getTile( x, y ).getRawValue(), v = raw & 0x3FF;
+        const bm = this.game.simulation.blockMaps;
+        const out = {
+            x, y, tile: v, char: tileChar( v ), name: tileName( v ),
+            powered: !!( raw & Tile.POWERBIT ), zoneCentre: !!( raw & Tile.ZONEBIT ),
+            density: bm.populationDensityMap.worldGet( x, y ), landValue: bm.landValueMap.worldGet( x, y ),
+            crime: bm.crimeRateMap.worldGet( x, y ), pollution: bm.pollutionDensityMap.worldGet( x, y ),
+            traffic: bm.trafficDensityMap.worldGet( x, y ), growth: bm.rateOfGrowthMap.worldGet( x, y ),
+        };
+        // Zone stats live on the centre tile; find it if we're on an edge tile.
+        let cx = x, cy = y, cv = v;
+        if ( !out.zoneCentre ) {
+            let best = null;
+            for ( let dy = -2; dy <= 2; dy++ ) for ( let dx = -2; dx <= 2; dx++ ) {
+                const tx = x + dx, ty = y + dy;
+                if ( !this.map.testBounds( tx, ty ) || !( this.map.getTile( tx, ty ).getRawValue() & Tile.ZONEBIT ) ) continue;
+                const d = Math.abs( dx ) + Math.abs( dy );
+                if ( !best || d < best.d ) best = { tx, ty, d };
+            }
+            if ( best ) { cx = best.tx; cy = best.ty; cv = this.map.getTileValue( cx, cy ); }
+        }
+        if ( cv >= Tile.RESBASE && cv < Tile.HOSPITALBASE ) out.zone = { kind: 'residential', x: cx - 1, y: cy - 1, size: 3, residents: Residential.getZonePopulation( this.map, cx, cy, cv ), level: cv === Tile.FREEZ ? 0 : Math.floor( ( cv - Tile.RZB ) / 9 ) + 1 };
+        else if ( cv >= Tile.COMBASE && cv < Tile.INDBASE ) out.zone = { kind: 'commercial', x: cx - 1, y: cy - 1, size: 3, businesses: Commercial.getZonePopulation( this.map, cx, cy, cv ), level: cv === Tile.COMCLR ? 0 : Math.floor( ( cv - Tile.CZB ) / 9 ) + 1 };
+        else if ( cv >= Tile.INDBASE && cv < Tile.PORTBASE ) out.zone = { kind: 'industrial', x: cx - 1, y: cy - 1, size: 3, factories: Industrial.getZonePopulation( this.map, cx, cy, cv ), level: cv === Tile.INDCLR ? 0 : Math.floor( ( cv - Tile.IZB ) / 9 ) + 1 };
+        else if ( cx !== x || cy !== y || out.zoneCentre ) out.zone = { kind: tileName( cv ), x: cx - 1, y: cy - 1 };
+        if ( out.zone ) out.zone.powered = !!( this.map.getTile( cx, cy ).getRawValue() & Tile.POWERBIT );
+        const q = this.query( { x, y } );
+        if ( q.ok ) out.info = q.result.info.split( '\n' ).filter( ( l ) => l && !/^Position/.test( l ) );
+        return out;
     }
 
     // ── act ─────────────────────────────────────────────────────────────────

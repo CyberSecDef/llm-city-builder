@@ -53,7 +53,7 @@ const server = http.createServer( async ( req, res ) => {
 } );
 
 const sim   = new Sim( 30 );
-const relay = new Relay( sim, server, { adminToken: () => ADMIN_TOKEN, onAdmin: ( a, m ) => onAdmin( a, m ) } );
+const relay = new Relay( sim, server, { adminToken: () => ADMIN_TOKEN, onAdmin: ( a, m ) => onAdmin( a, m ), onQuery: ( x, y ) => api.inspect( { x, y } ) } );
 const api   = new GameApi( sim );
 const mcp   = new CityMcp( api );
 api.on( 'landfill', ( tiles ) => relay.landfill( tiles ) );

@@ -199,3 +199,8 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   changed levels updated), tree meshes dropped where the tile is no longer a
   tree. Base.C had 475 where CZB+36 = 472, leaving one commercial level
   invisible everywhere; fixed. Park fountains (840) are now reconstructed.
+- Click-to-inspect (Sep 12 2026): viewer left-click without drag →
+  `QUERY_TILE` → `GameApi.inspect()` (tile name, nearest zone centre via
+  ZONEBIT, zone population from the zone modules, blockMaps raw values,
+  QueryTool text) → `TILE_INFO` → `src/ui/TileInfo.js` card. Note upstream
+  has no `hub.openQuery`, so the game's own query window never worked here.

@@ -20,11 +20,12 @@ const VIEWER_TELLS = new Set( [ 'BUDGET', 'EVAL', 'ACHIEVEMENTS', 'HISTORY', 'GE
 
 export class Relay {
 
-    constructor ( sim, httpServer, { adminToken, onAdmin } = {} ) {
+    constructor ( sim, httpServer, { adminToken, onAdmin, onQuery } = {} ) {
 
         this.sim     = sim;
         this.adminToken = adminToken || null;
         this.onAdmin = onAdmin || null;     // ( action, msg ) => string | undefined  (error text)
+        this.onQuery = onQuery || null;     // ( x, y ) => tile details for a viewer click
         this.wss     = new WebSocketServer( { server: httpServer, path: '/ws' } );
         this.encoder = new RunEncoder();
 
@@ -152,6 +153,11 @@ export class Relay {
                 return;
             }
             if ( msg.tell === 'ADMIN' ) { this._onAdmin( ws, msg ); return; }
+            if ( msg.tell === 'QUERY_TILE' && this.onQuery ) {
+                const info = this.onQuery( Number( msg.x ) | 0, Number( msg.y ) | 0 );
+                if ( info ) ws.send( JSON.stringify( { tell: 'TILE_INFO', info } ) );
+                return;
+            }
             if ( VIEWER_TELLS.has( msg.tell ) ) this.sim.post( msg );
             // everything else is silently dropped
         } );

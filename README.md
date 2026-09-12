@@ -56,6 +56,10 @@ AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT 
 
 `index.html` is still the original single-player game if you want to play yourself.
 
+## Inspecting the city
+
+Click any tile in the viewer (a plain click, not a drag) for a card with what it is, the zone it belongs to, residents / businesses / factories, power, and the sim's land value, crime, pollution, traffic and growth numbers. Esc closes it.
+
 ## Owner controls and saves
 
 The server prints an owner token at start. Open `/?admin=<token>` once, or click the 🔑 in the panel header and paste it, and the chat panel grows a control row: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.

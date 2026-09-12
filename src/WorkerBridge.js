@@ -262,6 +262,7 @@ export class WorkerBridge {
         if ( phase === 'SHOWOVERLAY' ) AppState.view3d.setOverlayMode( d.type, d.data );
 
         if ( phase === 'LANDFILL' )    AppState.view3d.liftTiles( d.tiles );
+        if ( phase === 'TILE_INFO' )   window.dispatchEvent( new CustomEvent( 'city-tile', { detail: d.info } ) );
 
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );
 
