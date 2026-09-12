@@ -10,7 +10,8 @@ const CSS = `
 #agent { position:absolute; right:12px; top:104px; bottom:12px; width:360px; max-width:calc(100vw - 24px);
   display:flex; flex-direction:column; background:var(--c-surface, rgba(20,30,48,.85)); border:1px solid var(--c-border, rgba(100,160,220,.22));
   border-radius:10px; color:var(--c-text, #dce8f5); font:13px/1.4 var(--font-ui, system-ui, sans-serif); pointer-events:auto; z-index:20; backdrop-filter:blur(6px); }
-#agent.collapsed { bottom:auto; }
+#agent.collapsed { bottom:auto; height:auto !important; }
+#agent-head { cursor:move; user-select:none; touch-action:none; }
 #agent.collapsed #agent-log, #agent.collapsed #agent-form { display:none; }
 #agent-head { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--c-border, rgba(100,160,220,.22)); cursor:pointer; }
 #agent-head b { flex:1; font-weight:600; }
@@ -77,7 +78,8 @@ export class AgentPanel {
         try { this.nameEl.value = localStorage.getItem( 'city-name' ) || ''; } catch {}
         this._initAdmin( el );
 
-        el.querySelector( '#agent-head' ).onclick = () => el.classList.toggle( 'collapsed' );
+        el.querySelector( '#agent-head' ).onclick = () => { if ( this._dragged ) { this._dragged = false; return; } el.classList.toggle( 'collapsed' ); };
+        this._initDrag( el );
         el.querySelector( '#agent-form' ).onsubmit = ( e ) => { e.preventDefault(); this.send(); };
         // Keep game hotkeys from firing while typing.
         el.addEventListener( 'keydown', ( e ) => e.stopPropagation() );
@@ -86,6 +88,51 @@ export class AgentPanel {
     }
 
     // ?admin=<token> once, then it lives in localStorage and the URL is cleaned.
+    // Drag the panel by its header. Position is remembered per browser;
+    // double-click the header to put it back where it started.
+    _initDrag ( el ) {
+        const head = el.querySelector( '#agent-head' );
+        let start = null;
+        const place = ( left, top, h ) => {
+            const r = el.getBoundingClientRect();
+            left = Math.max( 0, Math.min( left, window.innerWidth - r.width ) );
+            top = Math.max( 0, Math.min( top, window.innerHeight - 44 ) );
+            el.style.left = left + 'px'; el.style.top = top + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto';
+            if ( h ) el.style.height = Math.min( h, window.innerHeight - top - 12 ) + 'px';
+        };
+        head.addEventListener( 'pointerdown', ( e ) => {
+            if ( e.button !== 0 || e.target.id === 'agent-key' ) return;
+            const r = el.getBoundingClientRect();
+            start = { x: e.clientX, y: e.clientY, left: r.left, top: r.top, h: r.height, moved: false };
+            head.setPointerCapture( e.pointerId );
+        } );
+        head.addEventListener( 'pointermove', ( e ) => {
+            if ( !start ) return;
+            const dx = e.clientX - start.x, dy = e.clientY - start.y;
+            if ( !start.moved && Math.hypot( dx, dy ) < 4 ) return;
+            start.moved = true;
+            place( start.left + dx, start.top + dy, el.classList.contains( 'collapsed' ) ? 0 : start.h );
+        } );
+        head.addEventListener( 'pointerup', () => {
+            if ( !start ) return;
+            if ( start.moved ) {
+                this._dragged = true;
+                try { localStorage.setItem( 'city-panel', JSON.stringify( { left: el.offsetLeft, top: el.offsetTop, h: el.classList.contains( 'collapsed' ) ? 0 : el.offsetHeight } ) ); } catch {}
+            }
+            start = null;
+        } );
+        head.addEventListener( 'dblclick', ( e ) => {
+            if ( e.target.id === 'agent-key' ) return;
+            el.style.left = el.style.top = el.style.right = el.style.bottom = el.style.height = '';
+            try { localStorage.removeItem( 'city-panel' ); } catch {}
+        } );
+        window.addEventListener( 'resize', () => { if ( el.style.left ) place( el.offsetLeft, el.offsetTop, el.classList.contains( 'collapsed' ) ? 0 : el.offsetHeight ); } );
+        try {
+            const saved = JSON.parse( localStorage.getItem( 'city-panel' ) || 'null' );
+            if ( saved ) place( saved.left, saved.top, saved.h || 0 );
+        } catch {}
+    }
+
     // The owner token comes from ?admin=<token> once, from the 🔑 button, or
     // from localStorage on later visits. Wrong or missing: viewer only.
     _initAdmin ( el ) {
