@@ -30,6 +30,7 @@ export class Sim extends EventEmitter {
     post ( msg ) {
         if ( msg.tell === 'PLAYMAP' ) this.started = true;
         if ( msg.tell === 'SPEED' )   this.speed = msg.n;
+        if ( msg.tell === 'TOOL' )    this.tool = msg.name;
         CityGame.message( { data: msg } );
     }
 
@@ -37,6 +38,23 @@ export class Sim extends EventEmitter {
     newGame ( mapSize = [ 128, 128 ] ) {
         this.post( { tell: 'NEWMAP', mapSize } );
         this.post( { tell: 'PLAYMAP' } );
+    }
+
+    // The micropolis save blob (JSON string). CityGame answers SAVEGAME
+    // synchronously from inside post(), so the promise settles immediately.
+    save () {
+        return new Promise( ( resolve ) => {
+            const h = ( d ) => { if ( d.tell === 'SAVEGAME' ) { this.off( 'message', h ); resolve( d.gameData ); } };
+            this.on( 'message', h );
+            this.post( { tell: 'SAVEGAME', saveCity: '[]', silent: true } );
+        } );
+    }
+
+    // Restore a save() blob and start the clock.
+    load ( gameData ) {
+        this.post( { tell: 'MAKELOADGAME', savegame: gameData, isStart: true } );
+        this.started = true;
+        try { this.speed = JSON.parse( gameData ).speed ?? this.speed; } catch {}
     }
 
     _onMessage ( d ) {

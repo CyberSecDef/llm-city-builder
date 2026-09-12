@@ -20,9 +20,11 @@ const VIEWER_TELLS = new Set( [ 'BUDGET', 'EVAL', 'ACHIEVEMENTS', 'HISTORY', 'GE
 
 export class Relay {
 
-    constructor ( sim, httpServer ) {
+    constructor ( sim, httpServer, { adminToken, onAdmin } = {} ) {
 
         this.sim     = sim;
+        this.adminToken = adminToken || null;
+        this.onAdmin = onAdmin || null;     // ( action, msg ) => string | undefined  (error text)
         this.wss     = new WebSocketServer( { server: httpServer, path: '/ws' } );
         this.encoder = new RunEncoder();
 
@@ -42,9 +44,16 @@ export class Relay {
     // Hook up the agent host: its transcript and ledger go to viewers, viewer
     // chat goes to it.
     attachAgent ( host ) {
+        if ( this.agent && this._hostHandlers ) for ( const [ ev, fn ] of this._hostHandlers ) this.agent.off( ev, fn );
         this.agent = host;
-        host.on( 'entry',  ( entry )  => this._broadcastJSON( { tell: 'AGENT', entry } ) );
-        host.on( 'ledger', ( ledger ) => this._broadcastJSON( { tell: 'LEDGER', ledger } ) );
+        if ( !host ) { this._broadcastJSON( { tell: 'AGENT_SYNC', entries: [], ledger: null, state: null } ); return; }
+        this._hostHandlers = [
+            [ 'entry',  ( entry )  => this._broadcastJSON( { tell: 'AGENT', entry } ) ],
+            [ 'ledger', ( ledger ) => this._broadcastJSON( { tell: 'LEDGER', ledger } ) ],
+            [ 'state',  ( state )  => this._broadcastJSON( { tell: 'AGENT_STATE', state } ) ],
+        ];
+        for ( const [ ev, fn ] of this._hostHandlers ) host.on( ev, fn );
+        for ( const ws of this.wss.clients ) if ( ws.joined ) this._sendAgentSync( ws );
     }
 
     // ── sim → viewers ───────────────────────────────────────────────────────
@@ -61,6 +70,11 @@ export class Relay {
 
         // NEWMAP / FULLREBUILD replace the map; the diff baseline is stale.
         if ( d.tell === 'NEWMAP' || d.tell === 'FULLREBUILD' ) this.encoder.reset();
+        // A load's FULLREBUILD carries the (empty) 3D build list; viewers
+        // rebuild from tiles and choke on it, same as the JOIN snapshot.
+        if ( d.tell === 'FULLREBUILD' ) d = { ...d, cityData: null, speed: this.sim.speed };
+        // Viewers replay builds with the tool the sim had selected (see View.remoteBuild).
+        if ( d.tell === 'BUILD' ) d = { ...d, tool: this.sim.tool };
 
         // SAVEGAME / LOADGAME are main-thread storage round-trips; the server
         // owns persistence (M4), viewers never see them.
@@ -126,10 +140,22 @@ export class Relay {
                 this.agent.chat( String( msg.name || 'viewer' ).slice( 0, 24 ), msg.text.slice( 0, 500 ) );
                 return;
             }
+            if ( msg.tell === 'ADMIN' ) { this._onAdmin( ws, msg ); return; }
             if ( VIEWER_TELLS.has( msg.tell ) ) this.sim.post( msg );
             // everything else is silently dropped
         } );
 
+    }
+
+    // Owner actions. The token is the whole auth story: printed at start,
+    // pasted into the viewer once, compared here.
+    _onAdmin ( ws, msg ) {
+        const reply = ( ok, text ) => ws.send( JSON.stringify( { tell: 'ADMIN_RESULT', action: msg.action, ok, text } ) );
+        const token = typeof this.adminToken === 'function' ? this.adminToken() : this.adminToken;
+        if ( !token || msg.token !== token ) return reply( false, 'bad token' );
+        if ( !this.onAdmin ) return reply( false, 'no admin handler' );
+        Promise.resolve().then( () => this.onAdmin( String( msg.action || '' ), msg ) )
+            .then( ( err ) => reply( !err, err || 'ok' ), ( e ) => reply( false, e.message ) );
     }
 
     // Full current state so a late joiner can paint the map. Reuses the

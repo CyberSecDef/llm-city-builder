@@ -25,6 +25,10 @@ let renderer, camera, scene, timer, sun;
 const tm = { tmp:0, n:0, fps:0 };
 const tmpPos = new THREE.Vector2( 0, 0 );
 
+// Remote-viewer reconstruction tables (see rebuildFromTiles).
+const REMOTE_BUILDING = new Set( [ ...Base.R, ...Base.C, ...Base.I ] );
+const REMOTE_TOWN = { 774: [ 4, 3 ], 765: [ 7, 3 ], 750: [ 8, 4 ], 816: [ 9, 4 ], 698: [ 10, 4 ], 784: [ 11, 4 ], 716: [ 12, 6 ] };   // centre tile → [geo, size]
+
 export class View {
 
 	constructor () {
@@ -1794,6 +1798,7 @@ export class View {
 
 	build( x, y ) {
 		
+		if( !this.currentTool ) return;   // remote viewer: the mayor built this, no local tool selected
 		if( this.currentTool.tool === 'query' ) return;
 
 		if( this.currentTool.build ){
@@ -1863,6 +1868,54 @@ export class View {
 		}
 	}
 
+
+	//--------------------------------------------------REMOTE VIEWER
+
+	// Every zone/building mesh, from the tile map alone. A JOIN snapshot or a
+	// restored save carries no 3D build list, so viewers derive it: each zone's
+	// centre tile has a value unique to its type (Base.R/C/I, or a fixed
+	// centre for the big buildings), and the click point the mayor used is
+	// always top-left + (1,1), which is exactly that centre tile.
+	rebuildFromTiles () {
+
+		this.buildingLists = []; this.townLists = []; this.houseLists = [];
+		const t = AppState.tilesData, w = this.mapSize[0], h = this.mapSize[1];
+		if ( !t ) return;
+		for ( let y = 0; y < h; y++ ) for ( let x = 0; x < w; x++ ) {
+			const v = t[ x + y * w ];
+			if ( v < 240 ) continue;
+			if ( REMOTE_BUILDING.has( v ) ) this._placeRemote( x, y, 3, v, 'building' );
+			else if ( REMOTE_TOWN[ v ] ) this._placeRemote( x, y, REMOTE_TOWN[ v ][ 1 ], REMOTE_TOWN[ v ][ 0 ], 'town' );
+		}
+		for ( let l = 0; l < this.nlayers; l++ ) {
+			if ( this.townLists[ l ] ) this.rebuildTownLayer( l );
+			if ( this.buildingLists[ l ] ) this.rebuildBuildingLayer( l );
+		}
+
+	}
+
+	_placeRemote ( x, y, size, v, kind ) {
+
+		let py = this.heightData[ this.findHeightId( x, y ) ];
+		const zone = Zone( size, x, y ), zoneExtand = ZoneExtand( size, x, y );
+		this.removeTreePack( zone );
+		if ( AppState.withHeight && size !== 1 ) { py = this.getLowY( zone, py ); this.makePlanar( zoneExtand, py ); }
+		const layer = this.findLayer( x, y );
+		if ( kind === 'town' ) { if ( !this.townLists[ layer ] ) this.townLists[ layer ] = []; this.townLists[ layer ].push( [ x, py, y, v, zone ] ); }
+		else { if ( !this.buildingLists[ layer ] ) this.buildingLists[ layer ] = []; this.buildingLists[ layer ].push( [ x, py, y, v, zone, 0 ] ); }
+
+	}
+
+	// A build the mayor made on the server, replayed here with the same tool
+	// so the usual build() path (meshes, tree clearing, bulldoze) runs.
+	remoteBuild ( tool, x, y ) {
+
+		const t = Base.toolSet.find( ( s ) => s.tool === tool );
+		if ( !t ) return;
+		this.currentTool = t;
+		try { this.build( x, y ); } finally { this.currentTool = null; }
+
+	}
 
 	//--------------------------------------------------TEST DESTRUCT
 

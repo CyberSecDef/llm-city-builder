@@ -42,15 +42,24 @@ AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT 
 |---|---|
 | `PORT` | http/ws port (default 8787) |
 | `AGENT` | `claude-code[:model]`, `api[:model]` or `codex[:model]` |
-| `MAX_BUDGET_USD` | claude-code only: passed to `claude --max-budget-usd`; the mayor stops when it's spent |
+| `MAX_BUDGET_USD` | spend cap for any driver: at the cap the mayor and the clock pause and viewers see why; the owner can raise it. For claude-code it is also passed to the CLI |
 | `MAX_CONTEXT_TOKENS` | api only: prompt size that triggers history compaction (default 80000) |
 | `THINKING=off` | api only: disable adaptive thinking |
 | `EFFORT` | api only: `output_config.effort` (low / medium / high); `low` cuts thinking spend ~5x with no visible drop in play |
 | `CODEX_EFFORT` | codex only: `model_reasoning_effort` (low / medium / high) |
+| `GAME` | save file, default `saves/latest.json`; restored at boot if it exists, autosaved every `SAVE_EVERY` s (60) and on Ctrl-C |
+| `MAP_SIZE` | `WxH` for a new map (default `128x128`) |
+| `ADMIN_TOKEN` | owner token; random and printed at start if unset |
 | `AGENT_LOG` | file to append the CLI's raw stream-json events to |
 | `DEMO=1` | scripted starter town, no agent |
 
 `index.html` is still the original single-player game if you want to play yourself.
+
+## Owner controls and saves
+
+The server prints an owner token at start. Open `/?admin=<token>` once and the chat panel grows a control row: pause/resume (freezes the clock too), save, spend cap, new game with a map size, stop. The token is kept in that browser's localStorage; nobody else can touch the game.
+
+Everything lives in one save file per game (`GAME`, default `saves/latest.json`): the city, the transcript and ledger, unread viewer messages, and the mayor's own conversation (API history, Codex thread, or Claude Code session). Stop the server, start it again, and the mayor carries on mid-thought.
 
 ## The tool API
 
@@ -80,7 +89,7 @@ The API driver keeps one long conversation: tool results older than two turns co
 - [x] Headless sim, relay, viewer mode
 - [x] Tool API, MCP server, Claude Code driver, chat panel, ledger
 - [x] Direct Anthropic API driver, Codex driver
-- [ ] Persistence, pause/resume, spend caps, map sizes, viewer-only HUD
+- [x] Persistence, owner pause/resume, spend caps, map sizes, viewer-only HUD
 
 See [docs/PLAN.md](docs/PLAN.md) for details and gotchas.
 

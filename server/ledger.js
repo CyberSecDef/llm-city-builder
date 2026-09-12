@@ -29,6 +29,14 @@ export class Ledger extends EventEmitter {
 
     setModel ( model ) { this.model = model; }
 
+    serialize () { return { model: this.model, totals: this.totals, turns: this.turns.slice( -100 ), reported: this._reported }; }
+    restore ( s ) {
+        if ( !s ) return;
+        this.model = s.model || this.model; this.totals = { ...this.totals, ...s.totals };
+        this.turns = s.turns || []; this._reported = s.reported || 0;
+        this.emit( 'update', this.snapshot() );
+    }
+
     beginTurn () {
         this._turn = { at: Date.now(), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0, durationMs: 0 };
     }

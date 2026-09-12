@@ -40,6 +40,18 @@ export class AnthropicApiDriver extends EventEmitter {
 
     get name () { return `api:${ this.model }`; }
 
+    serialize () { return { model: this.model, turns: this.turns, lastInput: this.lastInput }; }
+    // A save taken mid-turn may end on an assistant message whose tool calls
+    // never got results; that would be rejected by the API, so drop it.
+    restore ( s ) {
+        if ( !s?.turns?.length ) return;
+        this.turns = s.turns; this.lastInput = s.lastInput || 0;
+        const turn = this.turns.at( -1 );
+        const last = turn.messages.at( -1 );
+        if ( last?.role === 'assistant' && Array.isArray( last.content ) && last.content.some( ( b ) => b.type === 'tool_use' ) ) turn.messages.pop();
+        if ( !turn.messages.length ) this.turns.pop();
+    }
+
     start () {
         if ( !this.client ) {
             if ( !process.env.ANTHROPIC_API_KEY ) throw new Error( 'ANTHROPIC_API_KEY is not set' );
@@ -51,6 +63,8 @@ export class AnthropicApiDriver extends EventEmitter {
     }
 
     stop () { this.stopped = true; this._abort?.abort(); }
+    // Finish the current model call, run its tools, then end the turn early.
+    interrupt () { this._interrupt = true; }
 
     // One user turn: prompt in, tool rounds until the model stops talking.
     async send ( text ) {
@@ -63,6 +77,7 @@ export class AnthropicApiDriver extends EventEmitter {
             await this._compactIfNeeded();
             const turn = { messages: [ { role: 'user', content: text } ] };
             this.turns.push( turn );
+            this._interrupt = false;
             for ( let calls = 0; calls < MAX_CALLS_PER_TURN && !this.stopped; calls++ ) {
                 const msg = await this._call( this._messages() );
                 cost += this._account( msg );
@@ -79,7 +94,7 @@ export class AnthropicApiDriver extends EventEmitter {
                     results.push( { type: 'tool_result', tool_use_id: u.id, content, ...( content.startsWith( 'ERROR:' ) ? { is_error: true } : {} ) } );
                 }
                 turn.messages.push( { role: 'user', content: results } );
-                if ( msg.stop_reason === 'max_tokens' ) break;
+                if ( msg.stop_reason === 'max_tokens' || this._interrupt ) break;
             }
             this._ageOut();
         } catch ( err ) {

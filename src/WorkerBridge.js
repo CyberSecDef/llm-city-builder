@@ -94,7 +94,7 @@ export class WorkerBridge {
         };
 
         // Lets the chat panel (plain module, not in the bundle) talk to the server.
-        window.cityRemote = { send: function ( m ) { _this.post( m ); } };
+        window.cityRemote = { send: function ( m ) { _this.post( m ); }, state: AppState };   // state: debug handle for viewer tooling
 
         ws.onmessage = function ( e ) {
             if ( e.data instanceof ArrayBuffer ) {
@@ -207,6 +207,7 @@ export class WorkerBridge {
             AppState.tilesData = d.tilesData;
             AppState.view3d.paintMap( d.mapSize, d.island, AppState.withHeight );
             if ( d.cityData ) AppState.view3d.loadCityBuild( d.cityData );   // null for a remote snapshot
+            else if ( AppState.remote ) AppState.view3d.rebuildFromTiles();
             if ( d.isStart ) {
                 AppState.main.playMap()
                 //AppState.view3d.startPlay();
@@ -219,7 +220,8 @@ export class WorkerBridge {
         }
 
         if ( phase === 'BUILD' ) {
-            AppState.view3d.build( d.x, d.y );
+            if ( d.tool ) AppState.view3d.remoteBuild( d.tool, d.x, d.y );   // relayed from the server's mayor
+            else AppState.view3d.build( d.x, d.y );
         }
 
         if ( phase === 'RUN' ) {
@@ -258,7 +260,7 @@ export class WorkerBridge {
         if ( phase === 'QUERY' )        AppState.hub.openQuery( d.queryTxt );
 
         // Agent transcript / ledger: handled by the chat panel outside the bundle.
-        if ( phase === 'AGENT' || phase === 'AGENT_SYNC' || phase === 'LEDGER' ) {
+        if ( phase === 'AGENT' || phase === 'AGENT_SYNC' || phase === 'LEDGER' || phase === 'AGENT_STATE' || phase === 'ADMIN_RESULT' ) {
             window.dispatchEvent( new CustomEvent( 'city-agent', { detail: d } ) );
         }
 

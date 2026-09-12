@@ -32,48 +32,111 @@ export class AgentHost extends EventEmitter {
         this.api = api; this.driver = driver;
         this.ledger = new Ledger();
         this.transcript = [];
-        this.running = false; this.paused = false;
+        this.running = false; this.paused = false; this.pauseReason = null;
+        this.capUsd = null; this.restored = false;
         this._wake = null;
 
-        api.on( 'event', ( ev ) => {
+        this._onApiEvent = ( ev ) => {
             if ( ev.quiet ) return;
             if ( ev.name === 'say' ) this._add( { kind: 'say', text: ev.args.text } );
             else this._add( { kind: 'tool', name: ev.name, args: ev.args, ok: ev.ok, result: ev.ok ? summarise( ev.result ) : ev.error } );
-        } );
+        };
+        api.on( 'event', this._onApiEvent );
         driver.on( 'text',   ( e ) => this._add( { kind: 'text', text: e.text } ) );
         driver.on( 'status', ( e ) => this._add( { kind: 'status', text: e.text } ) );
         driver.on( 'model',  ( m ) => this.ledger.setModel( m.model ) );
-        driver.on( 'usage',  ( u ) => this.ledger.addStep( u ) );
+        driver.on( 'usage',  ( u ) => { this.ledger.addStep( u ); this._checkCap(); } );
         driver.on( 'limits', ( l ) => { this.limits = l; this.emit( 'ledger', this.ledger.snapshot() ); } );
-        driver.on( 'turn',   ( t ) => { this.ledger.endTurn( t ); if ( t.error ) this._add( { kind: 'error', text: String( t.error ) } ); } );
+        driver.on( 'turn',   ( t ) => { this.ledger.endTurn( t ); this._checkCap(); if ( t.error ) this._add( { kind: 'error', text: String( t.error ) } ); } );
         driver.on( 'exit',   ( e ) => { this._add( { kind: 'status', text: `driver exited (${ e.code })` } ); this.running = false; } );
         this.ledger.on( 'update', ( s ) => this.emit( 'ledger', s ) );
     }
 
     snapshot () {
-        return { entries: this.transcript.slice( -100 ), ledger: this.ledger.snapshot(), limits: this.limits || null, driver: this.driver.name, running: this.running, paused: this.paused };
+        return { entries: this.transcript.slice( -100 ), ledger: this.ledger.snapshot(), limits: this.limits || null, driver: this.driver.name, state: this.state() };
     }
+
+    // Owner-facing state, broadcast to viewers as AGENT_STATE.
+    state () { return { running: this.running, paused: this.paused, reason: this.pauseReason || null, cap: this.capUsd || null, driver: this.driver.name }; }
 
     async start () {
         if ( this.running ) return;
         this.running = true;
         this.driver.start();
+        this._emitState();
         let first = true;
         while ( this.running ) {
             if ( this.paused ) { await this._sleep( 1000 ); continue; }
-            const prompt = first ? this._kickoff() : this._continue();
+            const prompt = first ? ( this.restored ? this._resumed() : this._kickoff() ) : this._continue();
             first = false;
             this.ledger.beginTurn();
             try { await this.driver.send( prompt ); }
             catch ( err ) { this._add( { kind: 'error', text: err.message } ); await this._sleep( 5000 ); }
             // Breathe between turns: viewers get a chance to talk, the sim to move.
-            if ( this.api.inbox.length === 0 ) await this._sleep( 4000 );
+            if ( this.api.inbox.length === 0 && !this.paused ) await this._sleep( 4000 );
         }
+        this._emitState();
     }
 
-    stop () { this.running = false; this.driver.stop(); }
-    pause () { this.paused = true; this._add( { kind: 'status', text: 'paused' } ); }
-    resume () { this.paused = false; this._add( { kind: 'status', text: 'resumed' } ); this._wake?.(); }
+    stop () {
+        this.running = false; this.driver.stop(); this._wake?.(); this._emitState();
+        this.api.off( 'event', this._onApiEvent );     // a replaced host must not keep echoing the game
+    }
+
+    // Pause freezes the mayor and the clock; the city waits exactly as it is.
+    pause ( reason = 'owner' ) {
+        if ( this.paused ) return;
+        this.paused = true; this.pauseReason = reason;
+        this._speedBefore = this.api.sim.speed || 2;
+        this.api.sim.post( { tell: 'SPEED', n: 0 } );
+        this.driver.interrupt?.();
+        this._add( { kind: 'status', text: reason === 'budget' ? `spend cap $${ this.capUsd } reached — paused` : 'paused by the owner' } );
+        this._emitState();
+    }
+
+    resume () {
+        if ( !this.paused ) return;
+        if ( this.pauseReason === 'budget' && this.overCap() ) return false;
+        this.paused = false; this.pauseReason = null;
+        this.api.sim.post( { tell: 'SPEED', n: this._speedBefore || 2 } );
+        this._add( { kind: 'status', text: 'resumed' } );
+        this._emitState(); this._wake?.();
+        return true;
+    }
+
+    // ── spend cap ───────────────────────────────────────────────────────────
+
+    setCap ( usd ) {
+        this.capUsd = usd > 0 ? usd : null;
+        this._emitState();
+        if ( this.paused && this.pauseReason === 'budget' && !this.overCap() ) this.resume();
+    }
+
+    overCap () {
+        const l = this.ledger.snapshot();
+        return !!this.capUsd && l.priced !== false && l.costUsd >= this.capUsd;
+    }
+
+    _checkCap () { if ( this.overCap() && !this.paused ) this.pause( 'budget' ); }
+
+    // ── persistence ─────────────────────────────────────────────────────────
+
+    serialize () {
+        return { transcript: this.transcript, ledger: this.ledger.serialize(), limits: this.limits || null, inbox: this.api.inbox, paused: this.paused, pauseReason: this.pauseReason || null, capUsd: this.capUsd || null, driver: this.driver.serialize?.() || null };
+    }
+
+    restore ( s ) {
+        if ( !s ) return;
+        this.transcript = s.transcript || []; this.ledger.restore( s.ledger ); this.limits = s.limits || null;
+        this.api.inbox.push( ...( s.inbox || [] ) );
+        if ( s.capUsd && !this.capUsd ) this.capUsd = s.capUsd;
+        this.driver.restore?.( s.driver );
+        this.restored = true;
+        this._add( { kind: 'status', text: 'server restarted; game restored from save' } );
+        if ( s.paused ) { this.paused = true; this.pauseReason = s.pauseReason || 'owner'; }
+    }
+
+    _emitState () { this.emit( 'state', this.state() ); }
 
     chat ( name, text ) {
         this.api.inbox.push( { name, text } );
@@ -81,15 +144,22 @@ export class AgentHost extends EventEmitter {
         this._wake?.();
     }
 
+    _resumed () {
+        const chat = this.inboxLines();
+        return chat + `The server was restarted and the game has been restored exactly where it was (${ this.api.sim.mapSize.join( 'x' ) } map, clock running). Tell the viewers you're back with say(), check get_state, and carry on.`;
+    }
+
+    inboxLines () {
+        const chat = this.api.inbox.splice( 0 );
+        const lines = chat.map( ( c ) => `Viewer ${ c.name }: ${ c.text }` );
+        return lines.length ? lines.join( '\n' ) + '\n\n' : '';
+    }
+
     _kickoff () {
         return `A new ${ this.api.sim.mapSize.join( 'x' ) } map has just been generated and the clock is running. Introduce yourself to the viewers with say(), look at the map, and found the city.`;
     }
 
-    _continue () {
-        const chat = this.api.inbox.splice( 0 );
-        const lines = chat.map( ( c ) => `Viewer ${ c.name }: ${ c.text }` );
-        return ( lines.length ? lines.join( '\n' ) + '\n\n' : '' ) + 'Continue playing.';
-    }
+    _continue () { return this.inboxLines() + 'Continue playing.'; }
 
     _add ( entry ) {
         entry.at = entry.at || Date.now();

@@ -66,8 +66,30 @@ people watch in the browser and can talk to it.
     call with everything else a cache hit; adaptive thinking spiked to
     7k output tokens on planning calls (~$6/h), `EFFORT=low` keeps it
     under 1.5k with the same behaviour.
-- **M4** persistence (save/restore city + transcript), agent pause/resume,
-  spend caps, multi map sizes.
+- **M4** ✅ persistence, owner controls, spend caps, map sizes, viewer HUD.
+  Decisions (Sep 12 2026): one save file per game that captures everything
+  needed to continue as if the server never stopped; the spend cap pauses
+  the sim as well as the agent and viewers see it; only the owner can
+  pause/resume/stop, via an admin token printed to stdout at start. Tasks:
+  - **M4.1** `server/save.js` — `GAME=path.json` (default `saves/latest.json`).
+    Contents: micropolis save JSON (`SAVEGAME` round-trip through the
+    headless sim, `MAKELOADGAME` to restore), agent transcript + ledger +
+    inbox, and driver state via `driver.serialize()/restore()`: API driver
+    = its `turns` + `lastInput`; Codex = thread id (`exec resume`);
+    Claude Code = session id (`--resume`). Autosave every 60 s and on
+    shutdown; load at boot if the file exists.
+  - **M4.2** Admin token (`ADMIN_TOKEN` env or random, printed at start).
+    WS `ADMIN {token, action}` with pause / resume / stop / save /
+    new_game; pause freezes agent and sim (speed 0), resume restores.
+    `?admin=<token>` on watch.html stores it and shows the controls.
+    Host broadcasts `AGENT_STATE {running, paused, reason, cap}`.
+  - **M4.3** Spend cap for every driver: `MAX_BUDGET_USD` checked against
+    the ledger after each step; on hit → pause with reason `budget`,
+    panel shows `$x / $cap · spend cap reached`. Owner can raise it
+    (`set_cap`). Unpriced models (Codex) can't be capped; say so.
+  - **M4.4** `MAP_SIZE=WxH` env and `new_game {mapSize}` admin action.
+  - **M4.5** Viewer HUD: no build bar, speed buttons, disaster or files
+    panels in remote mode; info panels stay.
 
 ## Running
 
@@ -83,6 +105,9 @@ AGENT=codex node server/index.js                 # Codex CLI (ChatGPT login), de
 AGENT=codex:gpt-5.5 CODEX_EFFORT=low ...
 AGENT_LOG=agent.jsonl ...                       # raw stream-json from the CLI
 DEMO=1 ...                                      # scripted starter town, no agent
+GAME=saves/weberton.json ...                    # save file (default saves/latest.json); restored at boot if present
+MAP_SIZE=64x64 SAVE_EVERY=30 ADMIN_TOKEN=secret ... # new-map size, autosave period (s), fixed owner token
+MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clock at $2, owner can raise it
 ```
 
 ## Notes
@@ -118,3 +143,25 @@ DEMO=1 ...                                      # scripted starter town, no agen
   `MAX_CONTEXT_TOKENS` everything but the last six turns is replaced by a
   model-written summary (`tool_choice: none`). Cost is price-table but
   reported as authoritative since the API gives nothing better.
+- Persistence: `server/save.js` writes `{version, savedAt, agentSpec, city,
+  agent}` atomically; `city` is the micropolis SAVEGAME blob obtained by
+  posting SAVEGAME to the headless sim (`Sim.save()`), restored with
+  MAKELOADGAME (`Sim.load()`). `agent` is `AgentHost.serialize()`:
+  transcript, ledger, inbox, pause state, cap, and `driver.serialize()`
+  (API: full `turns`; Codex: thread id; Claude Code: session id → `--resume`,
+  verified to keep context). A mid-turn save can end on an assistant
+  message with unanswered tool calls; `AnthropicApiDriver.restore` drops it.
+- Owner controls: `ADMIN {token, action}` over the same WebSocket; token
+  printed at start (or `ADMIN_TOKEN`). Actions pause / resume / stop / save /
+  set_cap / new_game. Pause sets sim speed 0 and asks the driver to end its
+  turn after the current model call (`interrupt()`, API driver only; the
+  CLI drivers finish their turn). A `wait` tool call in flight blocks until
+  resume, which is the intended effect.
+- Viewer rendering: the 3D build lists (`buildingLists`/`townLists`) only
+  ever came from the local player's clicks, so viewers saw terrain and
+  roads but no buildings. `View.rebuildFromTiles()` now derives them from
+  zone-centre tile values on every FULLREBUILD without cityData, and the
+  relay tags BUILD messages with the sim's selected tool so
+  `View.remoteBuild()` replays each placement (and bulldoze) live.
+  Headless Chromium (swiftshader) fails `copyTextureToTexture` for tile
+  textures, so roads can't be checked in screenshots; verify in a real browser.

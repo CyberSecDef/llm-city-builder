@@ -27,6 +27,7 @@ export class Hub_Build {
 		this.content = document.createElement('div');
         this.content.style.cssText ='position:absolute; bottom:0px; left:0; width:100%; height:200px; pointer-events:none;  background:none;' + ' transform: scale(0.66); transform-origin: bottom;';
         target.appendChild( this.content );
+        if ( AppState.remote ) this.content.style.display = 'none';   // viewers watch, the mayor builds
 
         this.inner = document.createElement('div');
         this.inner.style.cssText ='position:absolute; bottom:0px; left:50%; margin-left:-548px; border:4px solid var(--c-border); border-radius:20px 20px 0 0; width:1096px; height:176px; pointer-events:none; background:var(--c-surface-alt); box-sizing: content-box; box-shadow: var(--shadow-hub);';

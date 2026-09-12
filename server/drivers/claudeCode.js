@@ -23,6 +23,9 @@ export class ClaudeCodeDriver extends EventEmitter {
 
     get name () { return 'claude-code' + ( this.model ? `:${ this.model }` : '' ); }
 
+    serialize () { return { sessionId: this.sessionId }; }
+    restore ( s ) { if ( s?.sessionId ) this.resumeId = s.sessionId; }
+
     start () {
         const mcp = JSON.stringify( { mcpServers: { city: { type: 'http', url: this.mcpUrl } } } );
         const args = [
@@ -32,6 +35,7 @@ export class ClaudeCodeDriver extends EventEmitter {
             '--system-prompt', this.systemPrompt,
         ];
         if ( this.model ) args.push( '--model', this.model );
+        if ( this.resumeId ) args.push( '--resume', this.resumeId );
         if ( this.maxBudgetUsd ) args.push( '--max-budget-usd', String( this.maxBudgetUsd ) );
 
         this.proc = spawn( 'claude', args, { cwd: this.cwd, stdio: [ 'pipe', 'pipe', 'pipe' ], env: { ...process.env, CLAUDECODE: undefined } } );

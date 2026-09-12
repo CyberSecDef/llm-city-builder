@@ -102,6 +102,7 @@ export class Hub_Top {
 
         for( let m in this.pannels ){
 
+            if ( AppState.remote && ( m === 'Disaster' || m === 'Files' ) ) { n++; continue; }
             button = this.parent.addButton(n<5? topBar:topBar2, this.pannelsIcon[n]+m, [0,30,16], '', true);
             button.addEventListener('click',  ( e ) => { e.preventDefault(); this.closePannel( m ); this.pannels[m].open(); }, false);
             n++

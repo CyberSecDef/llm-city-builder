@@ -25,6 +25,9 @@ export class CodexDriver extends EventEmitter {
 
     get name () { return 'codex' + ( this.model ? `:${ this.model }` : '' ); }
 
+    serialize () { return { threadId: this.threadId }; }
+    restore ( s ) { if ( s?.threadId ) this.threadId = s.threadId; }
+
     start () {
         fs.mkdirSync( this.dir, { recursive: true } );
         fs.writeFileSync( path.join( this.dir, 'AGENTS.md' ), this.systemPrompt );
