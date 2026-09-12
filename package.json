@@ -48,6 +48,7 @@
     "rollup": "^4.6.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "ws": "^8.21.3",
     "zod": "^4.5.4"

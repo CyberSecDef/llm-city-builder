@@ -24,22 +24,28 @@ browser viewers  ──WebSocket──▶  server/           ◀──MCP (http)
 
 ## Run it
 
-Requires Node 22+ and, for the default driver, the [Claude Code](https://code.claude.com) CLI (`claude`) logged in.
+Requires Node 22+ and one of: the [Claude Code](https://code.claude.com) CLI logged in, an `ANTHROPIC_API_KEY`, or the [Codex](https://github.com/openai/codex) CLI logged in.
 
 ```bash
 npm install
 npm run build                                  # bundle src/ → build/ (rerun after touching src/)
 
 node server/index.js                           # sim + viewers only  → http://localhost:8787/
-AGENT=claude-code node server/index.js         # Claude Code plays, default model
+AGENT=claude-code node server/index.js         # Claude Code CLI plays (your login)
 AGENT=claude-code:sonnet node server/index.js  # pick a model alias / id
+AGENT=api node server/index.js                 # Anthropic API directly (ANTHROPIC_API_KEY), claude-sonnet-5
+AGENT=api:claude-opus-5 node server/index.js
+AGENT=codex node server/index.js               # OpenAI Codex CLI (your ChatGPT login)
 ```
 
 | env | meaning |
 |---|---|
 | `PORT` | http/ws port (default 8787) |
-| `AGENT` | `claude-code[:model]` |
-| `MAX_BUDGET_USD` | passed to `claude --max-budget-usd`; the mayor stops when it's spent |
+| `AGENT` | `claude-code[:model]`, `api[:model]` or `codex[:model]` |
+| `MAX_BUDGET_USD` | claude-code only: passed to `claude --max-budget-usd`; the mayor stops when it's spent |
+| `MAX_CONTEXT_TOKENS` | api only: prompt size that triggers history compaction (default 80000) |
+| `THINKING=off` | api only: disable adaptive thinking |
+| `CODEX_EFFORT` | codex only: `model_reasoning_effort` (low / medium / high) |
 | `AGENT_LOG` | file to append the CLI's raw stream-json events to |
 | `DEMO=1` | scripted starter town, no agent |
 
@@ -64,13 +70,15 @@ The definitions live in `server/tools.js` (zod) and are served over MCP; a direc
 
 ## Token tracking
 
-The panel header shows input / output tokens and cost. With Claude Code, per-call usage comes from the stream (`message_start` / `message_delta`); the CLI's authoritative `total_cost_usd` only arrives when the model ends a turn, so until then the cost is estimated from a price table and shown as `~$x`.
+The panel header shows input / output tokens and cost. With Claude Code, per-call usage comes from the stream (`message_start` / `message_delta`); the CLI's authoritative `total_cost_usd` only arrives when the model ends a turn, so until then the cost is estimated from a price table and shown as `~$x`. The API driver prices each call from the same table. Codex reports tokens but no price (it runs on your ChatGPT plan), so the panel shows `cost n/a`.
+
+The API driver keeps one long conversation: tool results older than two turns collapse to a line, and once the prompt passes `MAX_CONTEXT_TOKENS` the model writes itself a "state of the city" note that replaces the older history.
 
 ## Status / roadmap
 
 - [x] Headless sim, relay, viewer mode
 - [x] Tool API, MCP server, Claude Code driver, chat panel, ledger
-- [ ] Direct Anthropic API driver, Codex driver
+- [x] Direct Anthropic API driver, Codex driver
 - [ ] Persistence, pause/resume, spend caps, map sizes, viewer-only HUD
 
 See [docs/PLAN.md](docs/PLAN.md) for details and gotchas.

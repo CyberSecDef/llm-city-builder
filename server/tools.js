@@ -84,3 +84,10 @@ export const TOOL_DEFS = [
 export function toJsonSchema ( def ) {
     return { name: def.name, description: def.description, input_schema: z.toJSONSchema( z.object( def.input ) ) };
 }
+
+// GameApi result → the text a model sees. Shared by the MCP server and the
+// direct-API driver so both mayors read identical tool output.
+export function formatResult ( out ) {
+    if ( !out.ok ) return `ERROR: ${ out.error }`;
+    return typeof out.result === 'string' ? out.result : JSON.stringify( out.result, null, 1 );
+}

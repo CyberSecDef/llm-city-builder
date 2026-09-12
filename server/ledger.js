@@ -62,15 +62,22 @@ export class Ledger extends EventEmitter {
         this.emit( 'update', this.snapshot() );
     }
 
-    snapshot () { return { ...this.totals, costUsd: round( this.totals.costUsd ), model: this.model }; }
+    // priced=false: no price row for this model and the driver reports no cost,
+    // so costUsd is meaningless (Codex on a ChatGPT login, for instance).
+    snapshot () { return { ...this.totals, costUsd: round( this.totals.costUsd ), model: this.model, priced: !this.totals.estimated || hasPrice( this.model ) }; }
 
-    _price ( u ) {
-        const row = PRICES.find( ( [ k ] ) => ( this.model || '' ).includes( k ) );
-        if ( !row ) return 0;
-        const [ i, o, w, r ] = row[ 1 ];
-        return ( u.input * i + u.output * o + u.cacheWrite * w + u.cacheRead * r ) / 1e6;
-    }
+    _price ( u ) { return priceOf( this.model, u ); }
 
+}
+
+export const hasPrice = ( model ) => PRICES.some( ( [ k ] ) => ( model || '' ).includes( k ) );
+
+// USD for one call's usage, 0 if the model is unknown to the table.
+export function priceOf ( model, { input = 0, output = 0, cacheRead = 0, cacheWrite = 0 } ) {
+    const row = PRICES.find( ( [ k ] ) => ( model || '' ).includes( k ) );
+    if ( !row ) return 0;
+    const [ i, o, w, r ] = row[ 1 ];
+    return ( input * i + output * o + cacheWrite * w + cacheRead * r ) / 1e6;
 }
 
 const round = ( v ) => Math.round( v * 1e4 ) / 1e4;

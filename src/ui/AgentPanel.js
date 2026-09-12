@@ -94,7 +94,7 @@ export class AgentPanel {
     ledger ( l, limits ) {
         if ( !l ) { this.ledgerEl.textContent = 'no agent'; return; }
         const inTok = l.input + l.cacheRead + l.cacheWrite;
-        let s = `${ k( inTok ) } in · ${ k( l.output ) } out · ${ l.estimated ? '~' : '' }$${ l.costUsd.toFixed( 2 ) }`;
+        let s = `${ k( inTok ) } in · ${ k( l.output ) } out · ${ l.priced === false ? 'cost n/a' : ( l.estimated ? '~' : '' ) + '$' + l.costUsd.toFixed( 2 ) }`;
         if ( limits && limits.fiveHour != null ) s += ` · 5h ${ Math.round( limits.fiveHour * 100 ) }%`;
         this.ledgerEl.textContent = s;
         this.ledgerEl.title = `${ l.model || '' }\n${ l.turns } turns, ${ l.steps } model calls${ l.estimated ? ' (cost estimated from token prices)' : '' }\ninput ${ l.input }, cache read ${ l.cacheRead }, cache write ${ l.cacheWrite }, output ${ l.output }`;

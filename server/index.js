@@ -14,6 +14,8 @@ import { GameApi } from './gameApi.js';
 import { CityMcp } from './mcp.js';
 import { AgentHost, SYSTEM_PROMPT } from './agent.js';
 import { ClaudeCodeDriver } from './drivers/claudeCode.js';
+import { AnthropicApiDriver } from './drivers/anthropicApi.js';
+import { CodexDriver } from './drivers/codex.js';
 
 const ROOT = path.resolve( path.dirname( fileURLToPath( import.meta.url ) ), '..' );
 const PORT = Number( process.env.PORT ) || 8787;
@@ -63,7 +65,8 @@ server.listen( PORT, () => {
     if ( process.env.AGENT ) startAgent( process.env.AGENT );
 } );
 
-// AGENT=claude-code[:model]  e.g. AGENT=claude-code:sonnet
+// AGENT=claude-code[:model] | api[:model] | codex[:model]
+//   e.g. AGENT=claude-code:sonnet, AGENT=api:claude-opus-5, AGENT=codex
 function startAgent ( spec ) {
     const [ kind, model ] = spec.split( ':' );
     let driver;
@@ -72,6 +75,17 @@ function startAgent ( spec ) {
             mcpUrl: `http://localhost:${ PORT }/mcp`, systemPrompt: SYSTEM_PROMPT, model,
             maxBudgetUsd: Number( process.env.MAX_BUDGET_USD ) || undefined,
             cwd: path.join( ROOT, 'server' ), logFile: process.env.AGENT_LOG,
+        } );
+    } else if ( kind === 'api' ) {
+        driver = new AnthropicApiDriver( api, {
+            systemPrompt: SYSTEM_PROMPT, model, logFile: process.env.AGENT_LOG,
+            maxContextTokens: Number( process.env.MAX_CONTEXT_TOKENS ) || undefined,
+            thinking: process.env.THINKING !== 'off',
+        } );
+    } else if ( kind === 'codex' ) {
+        driver = new CodexDriver( {
+            mcpUrl: `http://localhost:${ PORT }/mcp`, systemPrompt: SYSTEM_PROMPT, model,
+            effort: process.env.CODEX_EFFORT, cwd: path.join( ROOT, 'server' ), logFile: process.env.AGENT_LOG,
         } );
     } else {
         console.error( `unknown agent "${ kind }"` ); return;
@@ -82,7 +96,7 @@ function startAgent ( spec ) {
         const line = e.kind === 'say' ? `🗣 ${ e.text }` : e.kind === 'tool' ? `⚙ ${ e.name } ${ JSON.stringify( e.args ) } → ${ e.ok ? e.result : 'ERROR ' + e.result }` : e.kind === 'user' ? `💬 ${ e.name }: ${ e.text }` : `· ${ e.text }`;
         console.log( '\n' + line );
     } );
-    host.start();
+    host.start().catch( ( err ) => console.error( 'agent failed:', err.message ) );
     for ( const sig of [ 'SIGINT', 'SIGTERM', 'SIGHUP' ] ) process.on( sig, () => { host.stop(); setTimeout( () => process.exit( 0 ), 500 ); } );
 }
 
@@ -113,6 +127,6 @@ setInterval( () => {
     const i = sim.infos;
     if ( !i.length ) return;
     const l = relay.agent ? relay.agent.ledger.snapshot() : null;
-    const cost = l ? `  tokens ${ l.input + l.cacheRead + l.cacheWrite }in/${ l.output }out $${ l.costUsd.toFixed( 3 ) }` : '';
+    const cost = l ? `  tokens ${ l.input + l.cacheRead + l.cacheWrite }in/${ l.output }out${ l.priced === false ? '' : ' $' + l.costUsd.toFixed( 3 ) }` : '';
     process.stdout.write( `\r${ i[ 0 ] }  pop ${ i[ 3 ] }  $${ i[ 4 ] }  score ${ i[ 2 ] }  viewers ${ relay.viewerCount }${ cost }   ` );
 }, 1000 );

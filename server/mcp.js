@@ -6,7 +6,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { TOOL_DEFS } from './tools.js';
+import { TOOL_DEFS, formatResult } from './tools.js';
 
 export class CityMcp {
 
@@ -37,8 +37,7 @@ export class CityMcp {
         for ( const def of TOOL_DEFS ) {
             server.registerTool( def.name, { description: def.description, inputSchema: def.input }, async ( args ) => {
                 const out = await this.api[ def.name ]( args || {} );
-                const text = out.ok ? ( typeof out.result === 'string' ? out.result : JSON.stringify( out.result, null, 1 ) ) : `ERROR: ${ out.error }`;
-                return { content: [ { type: 'text', text } ], isError: !out.ok };
+                return { content: [ { type: 'text', text: formatResult( out ) } ], isError: !out.ok };
             } );
         }
         return server;
