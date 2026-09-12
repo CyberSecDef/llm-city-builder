@@ -44,7 +44,7 @@ export const TOOL_DEFS = [
     },
     {
         name: 'build_line',
-        description: 'Lay road ($10/tile, bridges more), rail ($20) or power line ($5) from (x0,y0) to (x1,y1). Straight, or L-shaped: horizontal leg first, then vertical. Roads form ONE network: after the first road, a road line must touch the existing road somewhere; it is laid outward from that point, and stops at the first tile it can't cross. Power lines are only needed across gaps; adjacent zones conduct power to each other.',
+        description: 'Lay road ($10/tile, bridges more), rail ($20) or power line ($5) from (x0,y0) to (x1,y1). Straight, or L-shaped: horizontal leg first, then vertical. Roads form ONE network: after the first road, a road line must touch the existing road somewhere; it is laid outward from that point, and stops at the first tile it cannot cross. Power lines are only needed across gaps; adjacent zones conduct power to each other.',
         input: {
             tool: z.enum( LINE_TOOLS ),
             x0: coord( 'start x' ), y0: coord( 'start y' ), x1: coord( 'end x' ), y1: coord( 'end y' ),
