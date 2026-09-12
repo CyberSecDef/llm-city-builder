@@ -27,7 +27,7 @@ const tmpPos = new THREE.Vector2( 0, 0 );
 
 // Remote-viewer reconstruction tables (see rebuildFromTiles).
 const REMOTE_BUILDING = new Set( [ ...Base.R, ...Base.C, ...Base.I ] );
-const REMOTE_TOWN = { 774: [ 4, 3 ], 765: [ 7, 3 ], 750: [ 8, 4 ], 816: [ 9, 4 ], 698: [ 10, 4 ], 784: [ 11, 4 ], 716: [ 12, 6 ], 840: [ 5, 1 ] };   // centre tile → [geo, size]; 840 = park fountain
+const REMOTE_TOWN = { 774: [ 4, 3 ], 765: [ 7, 3 ], 750: [ 8, 4 ], 816: [ 9, 4 ], 698: [ 10, 4 ], 784: [ 11, 4 ], 716: [ 12, 6 ], 805: [ 11, 4 ], 840: [ 5, 1 ] };   // centre tile → [geo, size]; 805 = stadium during a game, 840 = park fountain
 
 export class View {
 
@@ -1936,25 +1936,32 @@ export class View {
 			else if ( REMOTE_TOWN[ v ] ) want.set( key( x, y ), [ x, y, REMOTE_TOWN[ v ][ 1 ], REMOTE_TOWN[ v ][ 0 ], 'town' ] );
 		}
 
+		// An entry is stale only when its centre tile is clearly something
+		// else (ground, road, a different kind). Animation frames and other
+		// values this table doesn't know keep the mesh as it is.
+		const gone = ( x, y ) => t[ x + y * w ] < 240;
 		const dirtyB = new Set(), dirtyT = new Set();
 		for ( let l = 0; l < this.nlayers; l++ ) {
 			const bl = this.buildingLists[ l ];
 			if ( bl ) for ( let i = bl.length - 1; i >= 0; i-- ) {
-				const ar = bl[ i ], e = want.get( key( ar[0], ar[2] ) );
-				if ( !e || e[4] !== 'building' ) { if ( ar[5] === 1 ) this.removeBaseHouse( ar[0], ar[1], ar[2] ); bl.splice( i, 1 ); dirtyB.add( l ); continue; }
-				if ( ar[3] !== e[3] ) { ar[3] = e[3]; dirtyB.add( l ); }
-				want.delete( key( ar[0], ar[2] ) );
+				const ar = bl[ i ], k = key( ar[0], ar[2] ), e = want.get( k );
+				if ( ( !e && gone( ar[0], ar[2] ) ) || ( e && e[4] !== 'building' ) ) {
+					if ( ar[5] === 1 && this.houseLists[ l ] ) this.removeBaseHouse( ar[0], ar[1], ar[2] );
+					bl.splice( i, 1 ); dirtyB.add( l ); continue;
+				}
+				if ( e && ar[3] !== e[3] ) { ar[3] = e[3]; dirtyB.add( l ); }
+				want.delete( k );
 			}
 			const tl = this.townLists[ l ];
 			if ( tl ) for ( let i = tl.length - 1; i >= 0; i-- ) {
-				const ar = tl[ i ], e = want.get( key( ar[0], ar[2] ) );
-				if ( !e || e[4] !== 'town' || e[3] !== ar[3] ) { tl.splice( i, 1 ); dirtyT.add( l ); continue; }
-				want.delete( key( ar[0], ar[2] ) );
+				const ar = tl[ i ], k = key( ar[0], ar[2] ), e = want.get( k );
+				if ( ( !e && gone( ar[0], ar[2] ) ) || ( e && ( e[4] !== 'town' || e[3] !== ar[3] ) ) ) { tl.splice( i, 1 ); dirtyT.add( l ); continue; }
+				want.delete( k );
 			}
 			const tr = this.treeLists[ l ];
 			if ( tr ) {
 				const keep = tr.filter( ( ar ) => { const v = t[ ar[0] + ar[2] * w ]; return v >= 21 && v <= 43; } );
-				if ( keep.length !== tr.length ) { this.treeLists[ l ] = keep; this.rebuildTreeLayer( l ); }
+				if ( keep.length !== tr.length ) { this.treeLists[ l ] = keep; if ( this.treeMeshs[ l ] ) this.rebuildTreeLayer( l ); else this.buildMeshLayer( l ); }
 			}
 		}
 		for ( const [ x, y, size, v, kind ] of want.values() ) {
