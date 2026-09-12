@@ -76,8 +76,11 @@ export class Budget {
     }
 
     load (saveData) {
+        // Older saves lack newer props (e.g. bondAnnualPrincipal); keep the
+        // constructor default rather than loading undefined, which turns the
+        // whole budget into NaN at the next tax cycle.
         for (var i = 0, l = Micro.BudgetProps.length; i < l; i++)
-            this[Micro.BudgetProps[i]] = saveData[Micro.BudgetProps[i]];
+            if (saveData[Micro.BudgetProps[i]] !== undefined) this[Micro.BudgetProps[i]] = saveData[Micro.BudgetProps[i]];
 
         EventEmitter.emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
         EventEmitter.emitEvent(Messages.FUNDS_CHANGED, this.totalFunds);
@@ -97,7 +100,7 @@ export class Budget {
 
     // Principal due each year under the repayment schedule.
     getBondAnnualPrincipal () {
-        return Math.min(this.bondAnnualPrincipal, this.bondDebt);
+        return Math.min(this.bondAnnualPrincipal || 0, this.bondDebt || 0);
     }
 
     // Once a year: interest, then the scheduled slice of principal. Both are
