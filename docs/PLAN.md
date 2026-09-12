@@ -165,3 +165,11 @@ MAX_BUDGET_USD=2 ...                            # any driver: pauses mayor + clo
   `View.remoteBuild()` replays each placement (and bulldoze) live.
   Headless Chromium (swiftshader) fails `copyTextureToTexture` for tile
   textures, so roads can't be checked in screenshots; verify in a real browser.
+- Build rules (Sep 12 2026): every build() footprint must border a road
+  tile (ring check, bridges count); build() prepares the site first — shore
+  water is filled outward from land at $25/tile (`LANDFILL_COST`, a direct
+  `map.setTile(DIRT)` plus `budget.spend`), then every non-dirt tile is
+  bulldozed with the real bulldozer tool so viewers get the BUILD replay and
+  the mayor pays $1/tile. build_line fills shore water and clears trees per
+  tile but leaves wires/rails for the road tool to cross. Open water with no
+  land beside it is refused.

@@ -36,7 +36,7 @@ export const TOOL_DEFS = [
     },
     {
         name: 'build',
-        description: `Place a zone or building with its TOP-LEFT corner at (x,y). Sizes/costs: ${ Object.entries( TOOLS ).filter( ( [ k ] ) => !LINE_TOOLS.includes( k ) ).map( ( [ k, v ] ) => `${ k } ${ v.size }x${ v.size } $${ v.cost }` ).join( ', ' ) }. Trees are auto-cleared (+$1/tile); water and existing structures block placement. Zones need a road within a few tiles and power (adjacent to a powered tile or a power line) to grow.`,
+        description: `Place a zone or building with its TOP-LEFT corner at (x,y). Sizes/costs: ${ Object.entries( TOOLS ).filter( ( [ k ] ) => !LINE_TOOLS.includes( k ) ).map( ( [ k, v ] ) => `${ k } ${ v.size }x${ v.size } $${ v.cost }` ).join( ', ' ) }. RULES: the footprint must border a road tile (lay roads first). The site is prepared for you: trees and existing structures on it are bulldozed ($1/tile), water tiles next to land are filled in ($25/tile); open water with no land beside it cannot be built on. Zones need power (adjacent to a powered tile or a power line) to grow.`,
         input: {
             tool: z.enum( Object.keys( TOOLS ).filter( ( k ) => !LINE_TOOLS.includes( k ) ) ),
             x: coord( 'top-left x' ), y: coord( 'top-left y' ),

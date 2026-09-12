@@ -9,6 +9,8 @@ import { EventEmitter } from 'node:events';
 import { CityGame } from '../src/micro/CityGame.js';
 import { Tile } from '../src/micro/Tile.js';
 
+const LANDFILL_COST = 25;   // $ per shore-water tile turned into land
+
 const RESULT_TEXT = { 0: 'ok', 1: 'failed (off map / not buildable here)', 2: 'not enough money', 3: 'needs bulldozing first' };
 
 // Tool → footprint. (x,y) in the API is the TOP-LEFT tile; the sim's click
@@ -191,11 +193,17 @@ export class GameApi extends EventEmitter {
     build ( { tool, x, y } ) {
         const spec = TOOLS[ tool ];
         if ( !spec ) return this._fail( 'build', { tool, x, y }, `unknown tool "${ tool }"; valid: ${ Object.keys( TOOLS ).join( ', ' ) }` );
+        const args = { tool, x, y };
+        const size = spec.size;
+        if ( !this.map.testBounds( x, y ) || !this.map.testBounds( x + size - 1, y + size - 1 ) ) return this._fail( 'build', args, `${ size }x${ size } footprint at (${ x },${ y }) runs off the map` );
+        if ( !this._roadAdjacent( x, y, size ) ) return this._fail( 'build', args, `nothing can be built away from a road: no road tile borders the ${ size }x${ size } footprint at (${ x },${ y }). Lay a road next to it first (build_line road).` );
         const before = this._funds();
-        const r = this._click( tool, x + ( spec.size > 1 ? 1 : 0 ), y + ( spec.size > 1 ? 1 : 0 ) );
+        const site = this._prepareSite( x, y, size );
+        if ( site.error ) return this._fail( 'build', args, site.error );
+        const r = this._click( tool, x + ( size > 1 ? 1 : 0 ), y + ( size > 1 ? 1 : 0 ) );
         const cost = before - this._funds();
-        if ( r !== 0 ) return this._fail( 'build', { tool, x, y }, r === 3 ? this._blockers( x, y, spec.size ) : RESULT_TEXT[ r ] );
-        return this._ok( 'build', { tool, x, y, size: spec.size, cost, funds: this._funds() }, { tool, x, y } );
+        if ( r !== 0 ) return this._fail( 'build', args, r === 3 ? this._blockers( x, y, size ) : RESULT_TEXT[ r ] );
+        return this._ok( 'build', { tool, x, y, size, cost, filled: site.filled, cleared: site.cleared, funds: this._funds() }, args );
     }
 
     // Straight or L-shaped line (horizontal leg first, then vertical).
@@ -207,16 +215,25 @@ export class GameApi extends EventEmitter {
         const sx = Math.sign( x1 - x0 ) || 1, sy = Math.sign( y1 - y0 ) || 1;
         for ( let x = x0; x !== x1 + sx; x += sx ) pts.push( [ x, y0 ] );
         for ( let y = y0 + sy; y !== y1 + sy; y += sy ) pts.push( [ x1, y ] );
-        this.game.tool( tool );
+        let filled = 0;
         for ( const [ x, y ] of pts ) {
-            const r = this._clickRaw( x, y );
+            if ( !this.map.testBounds( x, y ) ) { failed++; lastErr = 'off map'; continue; }
+            // Shore water is filled, trees are cleared; other structures are left
+            // for the tool to handle (roads cross wires and rails on their own).
+            if ( this._isWater( this.map.getTileValue( x, y ) ) ) {
+                if ( !this._touchesLand( x, y ) ) { failed++; lastErr = 'open water (no land next to it)'; continue; }
+                if ( this._funds() < LANDFILL_COST ) { failed++; lastErr = RESULT_TEXT[ 2 ]; break; }
+                this._landfill( x, y ); filled++;
+            } else if ( this._isTree( this.map.getTileValue( x, y ) ) ) {
+                this._click( 'bulldozer', x, y );
+            }
+            const r = this._click( tool, x, y );
             if ( r === 0 ) placed++; else { failed++; lastErr = RESULT_TEXT[ r ]; if ( r === 2 ) break; }
         }
-        this.game.tool( 'none' );
         const cost = before - this._funds();
         const args = { tool, x0, y0, x1, y1 };
         if ( placed === 0 ) return this._fail( 'build_line', args, lastErr || 'nothing placed' );
-        return this._ok( 'build_line', { placed, failed, lastError: lastErr, cost, funds: this._funds() }, args );
+        return this._ok( 'build_line', { placed, failed, filled, lastError: lastErr, cost, funds: this._funds() }, args );
     }
 
     bulldoze ( { x, y, w = 1, h = 1 } ) {
@@ -279,6 +296,62 @@ export class GameApi extends EventEmitter {
         if ( !this.map.testBounds( x, y ) ) return 1;
         this.game.mapClick( x, y, false );
         return this.game.currentTool.result;
+    }
+
+    // ── site preparation ────────────────────────────────────────────────────
+
+    _isWater ( v ) { const t = v & 0x3FF; return t >= Tile.RIVER && t <= Tile.WATER_HIGH; }
+    _isTree ( v ) { const t = v & 0x3FF; return t >= Tile.TREEBASE && t <= Tile.WOODS5; }
+    _isRoad ( v ) {
+        const t = v & 0x3FF;
+        return ( t >= Tile.ROADBASE && t <= Tile.LASTROAD ) || t === Tile.ROADVPOWERH || ( t >= Tile.HBRDG0 && t <= Tile.HBRDG3 ) || ( t >= Tile.VBRDG0 && t <= Tile.VBRDG3 );
+    }
+
+    _touchesLand ( x, y ) {
+        for ( const [ dx, dy ] of [ [ 1, 0 ], [ -1, 0 ], [ 0, 1 ], [ 0, -1 ] ] ) {
+            const tx = x + dx, ty = y + dy;
+            if ( this.map.testBounds( tx, ty ) && !this._isWater( this.map.getTileValue( tx, ty ) ) ) return true;
+        }
+        return false;
+    }
+
+    // Any road tile in the one-tile ring around the footprint.
+    _roadAdjacent ( x, y, size ) {
+        for ( let ty = y - 1; ty <= y + size; ty++ ) for ( let tx = x - 1; tx <= x + size; tx++ ) {
+            const inside = tx >= x && tx < x + size && ty >= y && ty < y + size;
+            if ( inside || !this.map.testBounds( tx, ty ) ) continue;
+            if ( this._isRoad( this.map.getTileValue( tx, ty ) ) ) return true;
+        }
+        return false;
+    }
+
+    _landfill ( x, y ) {
+        this.map.setTile( x, y, Tile.DIRT, 0 );
+        this.game.simulation.budget.spend( LANDFILL_COST );
+    }
+
+    // Make a footprint buildable: fill shore water outward from the land
+    // (each pass fills tiles that now touch land), then bulldoze whatever
+    // else is standing there. Returns { filled, cleared } or { error }.
+    _prepareSite ( x, y, size ) {
+        const tiles = [];
+        for ( let ty = y; ty < y + size; ty++ ) for ( let tx = x; tx < x + size; tx++ ) tiles.push( [ tx, ty ] );
+        let filled = 0, cleared = 0, changed = true;
+        while ( changed ) {
+            changed = false;
+            for ( const [ tx, ty ] of tiles ) {
+                if ( !this._isWater( this.map.getTileValue( tx, ty ) ) || !this._touchesLand( tx, ty ) ) continue;
+                if ( this._funds() < LANDFILL_COST ) return { error: `not enough money to fill water ($${ LANDFILL_COST }/tile)` };
+                this._landfill( tx, ty ); filled++; changed = true;
+            }
+        }
+        const open = tiles.filter( ( [ tx, ty ] ) => this._isWater( this.map.getTileValue( tx, ty ) ) ).length;
+        if ( open ) return { error: `${ size }x${ size } footprint at (${ x },${ y }) has ${ open } open-water tile(s) with no land beside them; only shore water can be filled` };
+        for ( const [ tx, ty ] of tiles ) {
+            if ( ( this.map.getTileValue( tx, ty ) & 0x3FF ) === Tile.DIRT ) continue;
+            if ( this._click( 'bulldozer', tx, ty ) === 0 ) cleared++;
+        }
+        return { filled, cleared };
     }
 
     // Explain why a footprint isn't buildable.
